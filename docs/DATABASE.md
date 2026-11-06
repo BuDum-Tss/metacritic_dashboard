@@ -31,7 +31,8 @@ erDiagram
 | Поле | Тип | Описание |
 |---|---|---|
 | `id` | INTEGER PK | |
-| `slug` | TEXT UNIQUE NOT NULL | идентификатор из URL Metacritic |
+| `source` | TEXT NOT NULL | источник данных: `metacritic`, позже `steam` |
+| `slug` | TEXT NOT NULL | идентификатор игры у источника (для Metacritic — из URL) |
 | `url` | TEXT NOT NULL | ссылка на страницу игры |
 | `title` | TEXT NOT NULL | название |
 | `cover_url` | TEXT | картинка-обложка |
@@ -43,7 +44,7 @@ erDiagram
 | `updated_at` | TEXT NOT NULL | когда описательные поля менялись в последний раз |
 | `last_processed_at` | TEXT NOT NULL | когда игра обрабатывалась в последний раз |
 
-Индексы: `slug` (уникальный), `last_processed_at` (для пропуска игр, обработанных сегодня).
+Индексы: `(source, slug)` (уникальный), `last_processed_at` (для пропуска игр, обработанных сегодня).
 
 ### `genres`
 
@@ -119,8 +120,8 @@ erDiagram
 | `id` | INTEGER PK | |
 | `trigger` | TEXT NOT NULL | `schedule` или `manual` |
 | `status` | TEXT NOT NULL | `running`, `success`, `failed` |
-| `source` | TEXT | `new_releases` или `see_all` |
-| `offset` | INTEGER | сдвиг первой игры пачки в списке SEE ALL (для `new_releases` — `NULL`) |
+| `source` | TEXT NOT NULL | источник данных: `metacritic` |
+| `batch_index` | INTEGER NOT NULL | порядковый номер пачки за день, начиная с 0 |
 | `started_at` | TEXT NOT NULL | |
 | `finished_at` | TEXT | |
 | `games_found` | INTEGER | |

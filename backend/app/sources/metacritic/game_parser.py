@@ -1,12 +1,19 @@
 import json
 import re
+from dataclasses import dataclass
 from urllib.parse import parse_qs, urlparse
 
 from bs4 import BeautifulSoup
 
-from app.parsers.models import Game, PlatformScore, UserScore
+from app.sources.base import Game, PlatformScore
 
 BASE_URL = "https://www.metacritic.com"
+
+
+@dataclass
+class UserScore:
+    userscore: float | None = None
+    user_reviews_count: int | None = None
 
 
 def _testid(soup: BeautifulSoup, name: str):

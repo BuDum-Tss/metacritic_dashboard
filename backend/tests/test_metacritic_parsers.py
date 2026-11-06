@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from app.parsers.game_parser import parse_game, parse_user_score
-from app.parsers.list_parser import parse_browse, parse_new_releases
+from app.sources.metacritic.game_parser import parse_game, parse_user_score
+from app.sources.metacritic.list_parser import parse_browse, parse_new_releases
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
