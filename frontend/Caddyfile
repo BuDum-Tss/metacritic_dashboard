@@ -1,0 +1,14 @@
+# SITE_ADDRESS: ":80" (by IP over HTTP) by default, or a domain name to get HTTPS automatically
+{$SITE_ADDRESS::80} {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
