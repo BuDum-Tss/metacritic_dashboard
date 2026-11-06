@@ -33,9 +33,9 @@ SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 
 @contextmanager
-def session_scope(factory: sessionmaker = SessionLocal) -> Iterator[Session]:
+def session_scope(factory: sessionmaker | None = None) -> Iterator[Session]:
     """One session per operation: commit on success, rollback on error."""
-    session = factory()
+    session = (factory or SessionLocal)()
     try:
         yield session
         session.commit()

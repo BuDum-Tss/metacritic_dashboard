@@ -122,9 +122,17 @@ def start_run(session: Session, source: str, trigger: str, batch_index: int, now
     return run
 
 
+def update_progress(session: Session, run_id: int, found: int, processed: int, failed: int) -> None:
+    run = session.get(SyncRun, run_id)
+    run.games_found = found
+    run.games_processed = processed
+    run.games_failed = failed
+    session.flush()
+
+
 def finish_run(
     session: Session,
-    run: SyncRun,
+    run_id: int,
     status: str,
     now: datetime,
     found: int = 0,
@@ -132,11 +140,10 @@ def finish_run(
     failed: int = 0,
     error: str | None = None,
 ) -> None:
+    update_progress(session, run_id, found, processed, failed)
+    run = session.get(SyncRun, run_id)
     run.status = status
     run.finished_at = now
-    run.games_found = found
-    run.games_processed = processed
-    run.games_failed = failed
     run.error = error
     session.flush()
 

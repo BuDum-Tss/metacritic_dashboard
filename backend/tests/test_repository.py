@@ -106,9 +106,9 @@ def test_sync_runs_count_only_successful_of_the_day(factory):
     day = T0.replace(hour=0)
     with session_scope(factory) as s:
         ok = repository.start_run(s, "metacritic", "schedule", 0, T0)
-        repository.finish_run(s, ok, "success", T0, found=20, processed=20)
+        repository.finish_run(s, ok.id, "success", T0, found=20, processed=20)
         bad = repository.start_run(s, "metacritic", "manual", 1, T0)
-        repository.finish_run(s, bad, "failed", T0, error="boom")
+        repository.finish_run(s, bad.id, "failed", T0, error="boom")
         yesterday = repository.start_run(s, "metacritic", "schedule", 0, T0 - timedelta(days=1))
-        repository.finish_run(s, yesterday, "success", T0 - timedelta(days=1))
+        repository.finish_run(s, yesterday.id, "success", T0 - timedelta(days=1))
         assert repository.count_successful_runs(s, "metacritic", day) == 1
