@@ -125,3 +125,87 @@ def test_similarity_math():
     assert similarity({1, 2}, {2, 3}, {"pc"}, {"pc"}) == pytest.approx(1 / 3 + 0.05)
     assert similarity({1}, {2}, {"pc"}, {"pc"}) == 0.0  # no common genre: platforms alone do not count
     assert similarity(set(), {1}, set(), set()) == 0.0
+
+
+def test_game_without_summaries_has_empty_ones(client):
+    game_id = client.get("/api/games?q=Zelda").json()["items"][0]["id"]
+    assert client.get(f"/api/games/{game_id}").json()["summaries"] == {"critics": None, "users": None}
+
+
+def test_game_card_carries_summaries_with_the_reviews_behind_each_point(client):
+    from app.db import review_repository
+    from app.sources.base import Review
+
+    game_id = client.get("/api/games?q=Zelda").json()["items"][0]["id"]
+    sample = [
+        Review(kind="users", text="Loved the combat", score=10, author="ann", date="Nov 1, 2026", platform="PC"),
+        Review(kind="users", text="Great visuals", score=9, author="bob", date="Nov 2, 2026"),
+        Review(kind="users", text="Too short", score=4, author="cid", date="Nov 3, 2026"),
+    ]
+    with session_scope() as s:
+        review_repository.save_summary(
+            s, game_id, "users", sample, 311, "stub", "hash",
+            likes=[("Combat and visuals shine", [1, 2])], dislikes=[("Too short", [3])], now=NOW,
+        )
+
+    summaries = client.get(f"/api/games/{game_id}").json()["summaries"]
+    assert summaries["critics"] is None
+    users = summaries["users"]
+    assert (users["sample_size"], users["total_reviews"], users["model"]) == (3, 311, "stub")
+    assert users["generated_at"].endswith("Z") or users["generated_at"].endswith("+00:00")
+
+    reviews = {r["id"]: r for r in users["reviews"]}
+    [like] = users["likes"]
+    [dislike] = users["dislikes"]
+    assert like["text"] == "Combat and visuals shine"
+    assert sorted(reviews[i]["author"] for i in like["review_ids"]) == ["ann", "bob"]
+    assert [reviews[i]["text"] for i in dislike["review_ids"]] == ["Too short"]
+    assert reviews[like["review_ids"][0]].keys() >= {"id", "author", "score", "date", "text", "url", "platform"}
+
+
+def test_game_card_carries_the_latest_overall_scores(client):
+    from app.sources.base import OverallScore
+
+    game_id = client.get("/api/games?q=Zelda").json()["items"][0]["id"]
+    assert client.get(f"/api/games/{game_id}").json()["overall"] == {"critics": None, "users": None}
+
+    def scores(critics: float, users: float | None) -> Game:
+        return game("zelda", "Zelda", ["Action", "Adventure"], [("switch", 96, 9.0)]).__class__(
+            slug="zelda", url="u", title="Zelda", genres=["Action", "Adventure"],
+            platforms=[PlatformScore(slug="switch", name="SWITCH", metascore=96, userscore=9.0)],
+            overall=[
+                OverallScore("critics", critics, "Universal Acclaim", 51, 50, 1, 0),
+                OverallScore("users", users, "Generally Favorable" if users else None, 1405, 1194, 79, 132),
+            ],
+        )
+
+    with session_scope() as s:
+        repository.save_game(s, "fake", scores(90.0, 8.5), NOW)
+        repository.save_game(s, "fake", scores(91.0, None), datetime(2026, 11, 7, 10, 0))
+
+    overall = client.get(f"/api/games/{game_id}").json()["overall"]
+    assert overall["critics"]["score"] == 91.0  # the latest row wins
+    assert (overall["critics"]["verdict"], overall["critics"]["reviews_count"]) == ("Universal Acclaim", 51)
+    assert (overall["critics"]["positive"], overall["critics"]["mixed"], overall["critics"]["negative"]) == (50, 1, 0)
+    assert overall["users"]["score"] is None and overall["users"]["verdict"] is None
+    assert overall["critics"]["captured_at"].endswith("Z") or overall["critics"]["captured_at"].endswith("+00:00")
+
+
+def test_summary_reviews_are_the_whole_sample_not_only_the_cited_ones(client):
+    from app.db import review_repository
+    from app.sources.base import Review
+
+    game_id = client.get("/api/games?q=Zelda").json()["items"][0]["id"]
+    sample = [
+        Review(kind="users", text=f"review {i}", score=score, author=f"u{i}", date="Nov 1, 2026")
+        for i, score in enumerate([10, 9, 4, 6])
+    ]
+    with session_scope() as s:
+        review_repository.save_summary(
+            s, game_id, "users", sample, 100, "stub", "h",
+            likes=[("Fine", [1])], dislikes=[], now=NOW,
+        )
+
+    users = client.get(f"/api/games/{game_id}").json()["summaries"]["users"]
+    assert sorted(r["text"] for r in users["reviews"]) == ["review 0", "review 1", "review 2", "review 3"]
+    assert len(users["likes"][0]["review_ids"]) == 1

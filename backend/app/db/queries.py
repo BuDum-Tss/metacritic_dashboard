@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import Game, GamePlatform, game_genres
+from app.db.models import Game, GameOverallScore, GamePlatform, game_genres
 
 SORTS = ("metascore", "userscore", "title", "updated")
 SIMILAR_LIMIT = 6
@@ -110,3 +110,18 @@ def similar_games(session: Session, game: Game, limit: int = SIMILAR_LIMIT) -> l
             scored.append((score, _best_metascore(other), other))
     scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
     return [other for _, _, other in scored[:limit]]
+
+
+def latest_overall(session: Session, game_id: int) -> dict[str, GameOverallScore]:
+    """The latest overall score of critics and of users of a game."""
+    result: dict[str, GameOverallScore] = {}
+    for source in ("critics", "users"):
+        row = session.scalar(
+            select(GameOverallScore)
+            .where(GameOverallScore.game_id == game_id, GameOverallScore.source == source)
+            .order_by(GameOverallScore.captured_at.desc(), GameOverallScore.id.desc())
+            .limit(1)
+        )
+        if row is not None:
+            result[source] = row
+    return result

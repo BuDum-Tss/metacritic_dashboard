@@ -5,7 +5,9 @@ from datetime import datetime
 from app.config import settings
 from app.db import repository
 from app.db.session import session_scope
-from app.sources.base import GameSource
+from app.llm import LLMClient, make_llm_client
+from app.services import summaries
+from app.sources.base import Game, GameSource
 
 log = logging.getLogger(__name__)
 
@@ -20,17 +22,35 @@ def is_running() -> bool:
     return _lock.locked()
 
 
-def run_cycle(source: GameSource, trigger: str, now: datetime | None = None, batch_size: int | None = None) -> int:
-    """Process one batch of games from `source`. Returns the id of the sync run."""
+def run_cycle(
+    source: GameSource,
+    trigger: str,
+    now: datetime | None = None,
+    batch_size: int | None = None,
+    llm: LLMClient | None = None,
+) -> int:
+    """Process one batch of games from `source`. Returns the id of the sync run.
+
+    Review summaries are built when a model is available: the given one or the one from the settings.
+    """
     if not _lock.acquire(blocking=False):
         raise SyncAlreadyRunning
     try:
-        return _run(source, trigger, now or repository.utcnow(), batch_size or settings.batch_size)
+        llm = llm or make_llm_client()
+        return _run(source, trigger, now or repository.utcnow(), batch_size or settings.batch_size, llm)
     finally:
         _lock.release()
 
 
-def _run(source: GameSource, trigger: str, started: datetime, batch_size: int) -> int:
+def _summarize(source: GameSource, game: Game, game_id: int, llm: LLMClient) -> None:
+    """Summaries are an addition: a failure here must not fail the game that is already saved."""
+    try:
+        summaries.summarize_game(source, game, game_id, llm, repository.utcnow())
+    except Exception:
+        log.exception("failed to summarize reviews of %s", game.slug)
+
+
+def _run(source: GameSource, trigger: str, started: datetime, batch_size: int, llm: LLMClient | None) -> int:
     day_start = started.replace(hour=0, minute=0, second=0, microsecond=0)
 
     with session_scope() as session:
@@ -50,8 +70,10 @@ def _run(source: GameSource, trigger: str, started: datetime, batch_size: int) -
             try:
                 game = source.fetch_game(ref)
                 with session_scope() as session:
-                    repository.save_game(session, source.name, game, repository.utcnow())
+                    saved = repository.save_game(session, source.name, game, repository.utcnow())
                 processed += 1
+                if llm is not None:
+                    _summarize(source, game, saved.game_id, llm)
             except Exception:
                 log.exception("failed to process game %s", ref)
                 failed += 1

@@ -4,7 +4,7 @@
 
 Принципы:
 - Время хранится в UTC в формате ISO 8601 (`TEXT`).
-- Сырые отзывы не хранятся, их можно восстановить с Metacritic. Остаются только резюме и хэш набора отзывов.
+- Хранятся только отзывы, вошедшие в выборку для резюме (не больше 70 на игру); остальные отзывы можно получить с Metacritic.
 - Метрики и резюме версионируются: строки только добавляются, чтобы строить графики во времени.
 - Актуальные значения для списка, фильтров и сортировки лежат в `game_platforms`.
 
@@ -16,7 +16,14 @@ erDiagram
     genres ||--o{ game_genres : has
     games ||--o{ game_platforms : "current metrics"
     games ||--o{ game_platform_history : "metrics over time"
+    games ||--o{ game_overall_scores : "overall scores over time"
     games ||--o{ review_summaries : "summaries over time"
+    games ||--o{ reviews : "analyzed sample"
+    review_summaries ||--o{ summary_points : has
+    review_summaries ||--o{ summary_reviews : "sample"
+    reviews ||--o{ summary_reviews : "in sample"
+    summary_points ||--o{ summary_point_reviews : "based on"
+    reviews ||--o{ summary_point_reviews : "supports"
     games ||--o{ game_videos : "later"
 ```
 
@@ -95,21 +102,95 @@ erDiagram
 
 Индекс: `(game_id, platform, captured_at)`.
 
-### `review_summaries`
+### `game_overall_scores`
 
-Версии резюме по отзывам. Только добавление строк. Новая версия создаётся при смене `reviews_hash`.
+Общие оценки игры так, как их показывает Metacritic в шапке страницы игры. Только добавление строк: при каждой обработке игры по строке для критиков и для игроков. Актуальная — самая свежая строка по `(game_id, source)`.
 
 | Поле | Тип | Описание |
 |---|---|---|
 | `id` | INTEGER PK | |
 | `game_id` | INTEGER FK → games.id | |
 | `source` | TEXT NOT NULL | `critics` или `users` |
-| `likes` | TEXT | что нравится |
-| `dislikes` | TEXT | что не нравится |
-| `reviews_hash` | TEXT NOT NULL | хэш набора отзывов, по которому сделано резюме |
+| `score` | REAL | Metascore (0–100) или Userscore (0–10), `NULL` если оценки ещё нет |
+| `verdict` | TEXT | вердикт, например `Generally Favorable`; `NULL` если оценки нет |
+| `reviews_count` | INTEGER | число отзывов или оценок |
+| `positive` | INTEGER | число положительных отзывов |
+| `mixed` | INTEGER | число смешанных |
+| `negative` | INTEGER | число отрицательных |
+| `captured_at` | TEXT NOT NULL | |
+
+Индекс: `(game_id, source, captured_at)`.
+
+### `reviews`
+
+Отзывы, вошедшие в выборку для резюме. Строка создаётся один раз и переиспользуется в следующих резюме.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `game_id` | INTEGER FK → games.id | |
+| `source` | TEXT NOT NULL | `critics` или `users` |
+| `external_key` | TEXT NOT NULL | `sha256` от `(тип, автор, дата, оценка, текст)`: на странице Metacritic идентификатора нет |
+| `platform` | TEXT | слаг платформы, с которой взят отзыв |
+| `author` | TEXT | издание (критики) или имя пользователя |
+| `score` | INTEGER | оценка (критики 0–100, пользователи 0–10) |
+| `reviewed_at` | TEXT | дата отзыва |
+| `text` | TEXT NOT NULL | текст отзыва |
+| `url` | TEXT | ссылка на полный обзор (у критиков) |
+| `first_seen_at` | TEXT NOT NULL | |
+
+Уникальный ключ: `(game_id, source, external_key)`.
+
+### `review_summaries`
+
+Версии резюме по отзывам. Только добавление строк. Новая версия создаётся при смене `reviews_hash`, но не чаще раза в сутки.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `game_id` | INTEGER FK → games.id | |
+| `source` | TEXT NOT NULL | `critics` или `users` |
+| `reviews_hash` | TEXT NOT NULL | хэш ключей отзывов выборки |
+| `sample_size` | INTEGER NOT NULL | сколько отзывов проанализировано |
+| `total_reviews` | INTEGER | сколько отзывов этого типа всего у игры |
+| `model` | TEXT NOT NULL | какая модель сделала резюме |
 | `generated_at` | TEXT NOT NULL | |
 
 Индекс: `(game_id, source, generated_at)`. Актуальное резюме — самая свежая строка по `(game_id, source)`.
+
+### `summary_reviews`
+
+Вся выборка отзывов, на которой построено резюме (пункты ссылаются на её часть через `summary_point_reviews`).
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `summary_id` | INTEGER FK → review_summaries.id | |
+| `review_id` | INTEGER FK → reviews.id | |
+
+Первичный ключ: `(summary_id, review_id)`.
+
+### `summary_points`
+
+Пункты резюме.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `summary_id` | INTEGER FK → review_summaries.id | |
+| `kind` | TEXT NOT NULL | `like` или `dislike` |
+| `position` | INTEGER NOT NULL | порядок внутри резюме |
+| `text` | TEXT NOT NULL | формулировка пункта |
+
+### `summary_point_reviews`
+
+Связь пункта с отзывами, на которых он основан.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `point_id` | INTEGER FK → summary_points.id | |
+| `review_id` | INTEGER FK → reviews.id | |
+
+Первичный ключ: `(point_id, review_id)`.
 
 ### `sync_runs`
 

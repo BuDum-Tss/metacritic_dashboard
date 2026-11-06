@@ -2,8 +2,20 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.api.schemas import GameDetail, GamePageOut, GameShort, PlatformOption
-from app.db import queries
+from app.api.schemas import (
+    GameDetail,
+    GamePageOut,
+    GameShort,
+    OverallOut,
+    OverallsOut,
+    PlatformOption,
+    PointOut,
+    ReviewOut,
+    SummariesOut,
+    SummaryOut,
+)
+from app.db import queries, review_repository
+from app.db.models import ReviewSummary
 from app.db.session import session_scope
 
 router = APIRouter(prefix="/api/games", tags=["games"])
@@ -45,4 +57,28 @@ def get_game(game_id: int) -> GameDetail:
             raise HTTPException(status_code=404, detail="Game not found")
         detail = GameDetail.model_validate(game)
         detail.similar = [GameShort.model_validate(other) for other in queries.similar_games(session, game)]
+        overall = queries.latest_overall(session, game_id)
+        detail.overall = OverallsOut(**{kind: OverallOut.model_validate(row) for kind, row in overall.items()})
+        found = review_repository.latest_summaries(session, game_id)
+        detail.summaries = SummariesOut(**{kind: _summary_out(summary) for kind, summary in found.items()})
         return detail
+
+
+def _summary_out(summary: ReviewSummary) -> SummaryOut:
+    points = {"like": [], "dislike": []}
+    for point in summary.points:
+        points[point.kind].append(PointOut(id=point.id, text=point.text, review_ids=[r.id for r in point.reviews]))
+    return SummaryOut(
+        generated_at=summary.generated_at,
+        sample_size=summary.sample_size,
+        total_reviews=summary.total_reviews,
+        model=summary.model,
+        likes=points["like"],
+        dislikes=points["dislike"],
+        reviews=[
+            ReviewOut(
+                id=r.id, author=r.author, score=r.score, date=r.reviewed_at, text=r.text, url=r.url, platform=r.platform
+            )
+            for r in summary.reviews  # the whole sample, already ordered by id
+        ],
+    )

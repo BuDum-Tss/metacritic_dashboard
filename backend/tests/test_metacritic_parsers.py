@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from app.sources.metacritic.game_parser import parse_game, parse_user_score
+from app.sources.metacritic.game_parser import parse_game, parse_review_stats, parse_user_score
 from app.sources.metacritic.list_parser import parse_browse, parse_new_releases
+from app.sources.metacritic.review_parser import parse_game_page_reviews, parse_review_page
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -60,6 +61,40 @@ def test_user_score_tbd():
     assert score.userscore is None
 
 
+def test_critic_reviews_page():
+    reviews = parse_review_page(read("phantom-critic-reviews.html"), "critics", "PC")
+    assert len(reviews) == 10
+    first = reviews[0]
+    assert (first.kind, first.score, first.author, first.date) == ("critics", 100, "But Why Tho?", "Oct 25, 2026")
+    assert first.text.startswith("A beautiful and horrific game")
+    assert first.url == "https://butwhytho.net/2026/10/phantom-blade-zero-review-s-game-wuxia/"
+    assert first.platform == "PC"
+    assert len({r.key for r in reviews}) == 10
+
+
+def test_user_reviews_page_skips_spoiler_placeholders():
+    reviews = parse_review_page(read("phantom-user-reviews.html"), "users", "PC")
+    assert len(reviews) == 45  # 50 cards, 5 of them hide the text behind a spoiler warning
+    assert all(not r.text.startswith("[SPOILER") for r in reviews)
+    assert all(r.kind == "users" and r.score is not None and r.author for r in reviews)
+    assert {r.score for r in reviews} >= {10, 0}  # not only praise
+
+
+def test_game_page_reviews_come_from_all_four_blocks_with_mixed_scores():
+    reviews = parse_game_page_reviews(read("phantom-blade-zero.html"))
+    critics = [r.score for r in reviews if r.kind == "critics"]
+    users = [r.score for r in reviews if r.kind == "users"]
+    assert sorted(critics) == [60, 85, 90, 90, 90, 95, 100]
+    assert sorted(users) == [4, 4, 7, 7, 10, 10]  # the spoiler one is skipped
+
+
+def test_review_stats_of_a_game_page():
+    stats = parse_review_stats(read("phantom-blade-zero.html"))
+    assert (stats.critics_total, stats.users_total) == (51, 1405)
+    assert stats.critics_tones == {"positive": 50, "mixed": 1}
+    assert stats.users_tones == {"positive": 1194, "mixed": 79, "negative": 132}
+
+
 def test_developer_as_plain_text():
     html = (
         '<div data-testid="hero-summary-developer"><p>'
@@ -67,3 +102,21 @@ def test_developer_as_plain_text():
         '<script type="application/ld+json">{"@type":"VideoGame","name":"X"}</script>'
     )
     assert parse_game(html, "x").developer == "PHOSEPO"
+
+
+def test_overall_scores_of_a_game_page():
+    game = parse_game(read("phantom-blade-zero.html"), "phantom-blade-zero")
+    overall = {o.kind: o for o in game.overall}
+    critics, users = overall["critics"], overall["users"]
+    assert (critics.score, critics.verdict, critics.reviews_count) == (88.0, "Generally Favorable", 51)
+    assert (critics.positive, critics.mixed, critics.negative) == (50, 1, None)
+    assert (users.score, users.verdict, users.reviews_count) == (8.7, "Generally Favorable", 1405)
+    assert (users.positive, users.mixed, users.negative) == (1194, 79, 132)
+
+
+def test_overall_user_score_is_empty_while_the_site_has_none():
+    game = parse_game(read("stellar-blade-complete-edition.html"), "stellar-blade-complete-edition")
+    overall = {o.kind: o for o in game.overall}
+    assert overall["critics"].score == 81.0
+    users = overall["users"]
+    assert (users.score, users.verdict) == (None, None)  # "Available after 4 ratings" is not a verdict

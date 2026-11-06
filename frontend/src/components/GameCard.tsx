@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { ScoreBadge } from '@/components/ScoreBadge'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import { metascoreTone, userscoreTone } from '@/lib/format'
 import type { GameShort } from '@/api/types'
 
 export function GameCard({ game }: { game: GameShort }) {
@@ -45,8 +44,8 @@ export function GameCard({ game }: { game: GameShort }) {
               <li key={p.platform} className="flex items-center justify-between gap-2 text-xs">
                 <span className="truncate text-muted-foreground">{p.name}</span>
                 <span className="flex shrink-0 gap-1">
-                  <ScoreBadge value={p.metascore} tone={metascoreTone(p.metascore)} title="Metascore" />
-                  <ScoreBadge value={p.userscore} tone={userscoreTone(p.userscore)} title="Userscore" />
+                  <ScoreBadge kind="critic" value={p.metascore} />
+                  <ScoreBadge kind="user" value={p.userscore} />
                 </span>
               </li>
             ))}

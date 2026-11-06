@@ -12,5 +12,16 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 30.0
     request_retries: int = 3
 
+    llm_api_key: str = ""
+    llm_base_url: str = "https://ai.starimg.ru"
+    llm_model: str = "claude-haiku-5-5"
+    llm_timeout_seconds: float = 60.0
+    llm_retries: int = 2
+
+    summary_min_interval_hours: int = 24
+    critics_sample_limit: int = 30
+    users_sample_limit: int = 40
+    review_text_limit: int = 600
+
 
 settings = Settings()

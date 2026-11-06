@@ -18,6 +18,10 @@ class FakeClient:
             name = "home.html"
         elif "/browse/" in url:
             name = "browse.html"
+        elif "/critic-reviews/" in url:
+            name = "phantom-critic-reviews.html"
+        elif "/user-reviews/" in url:
+            name = "phantom-user-reviews.html"
         else:
             name = self.game_page
         return (FIXTURES / name).read_text(encoding="utf-8")
@@ -55,3 +59,49 @@ def test_fetch_game_with_single_platform_makes_one_request():
     game = MetacriticSource(client).fetch_game("stellar-blade-complete-edition")
     assert len(game.platforms) == 1
     assert len(client.calls) == 1
+
+
+def test_fetch_reviews_collects_every_html_source():
+    client = FakeClient()
+    source = MetacriticSource(client)
+    game = source.fetch_game("phantom-blade-zero")
+    client.calls.clear()
+
+    bundle = source.fetch_reviews(game)
+
+    urls = [(url.split("/game/")[1], params) for url, params in client.calls]
+    critic_calls = [p for u, p in urls if "critic-reviews" in u]
+    user_calls = [p for u, p in urls if "user-reviews" in u]
+    assert sorted(p["platform"] for p in critic_calls) == ["pc", "playstation-5"]  # two platforms with critic reviews
+    assert len(user_calls) == 1  # one platform for user reviews
+    assert len(urls) == 3  # the game page itself is not requested again
+
+    critics = [r for r in bundle.reviews if r.kind == "critics"]
+    users = [r for r in bundle.reviews if r.kind == "users"]
+    assert len(critics) == 2 + 5 + 10 + 10  # game page blocks + two critic pages
+    assert len(users) > 40
+    assert bundle.stats.critics_total == 51
+    assert bundle.stats.users_total == 1405
+    assert bundle.stats.users_tones == {"positive": 1194, "mixed": 79, "negative": 132}
+
+
+def test_fetch_reviews_without_a_prior_fetch_loads_the_game_page():
+    client = FakeClient()
+    source = MetacriticSource(client)
+    game = source.fetch_game("phantom-blade-zero")
+    other = MetacriticSource(FakeClient())  # a source that has not seen the page
+    other.fetch_reviews(game)
+    assert any(url.endswith("/game/phantom-blade-zero/") for url, _ in other._client.calls)
+
+
+def test_game_without_reviews_pages_makes_no_extra_requests():
+    client = FakeClient("stellar-blade-complete-edition.html")
+    source = MetacriticSource(client)
+    game = source.fetch_game("stellar-blade-complete-edition")
+    for platform in game.platforms:
+        platform.critic_reviews_count = None
+        platform.user_reviews_count = None
+    client.calls.clear()
+
+    source.fetch_reviews(game)
+    assert client.calls == []

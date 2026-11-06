@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 
 from bs4 import BeautifulSoup
 
-from app.sources.base import Game, PlatformScore
+from app.sources.base import Game, OverallScore, PlatformScore, ReviewStats
 
 BASE_URL = "https://www.metacritic.com"
 
@@ -84,6 +84,38 @@ def _platform_cards(soup: BeautifulSoup) -> list[PlatformScore]:
     return platforms
 
 
+def _overall(soup: BeautifulSoup) -> list[OverallScore]:
+    """The overall Metascore and Userscore blocks of a game page."""
+    blocks = (
+        ("critics", "product-score", "Metascore", r"Metascore (\d+(?:\.\d+)?) out of 100", r"Based on ([\d,]+) Critic Reviews"),
+        ("users", "user-reviews", "User score", r"User score (\d+(?:\.\d+)?) out of 10", r"Based on ([\d,]+) User Ratings?"),
+    )
+    result: list[OverallScore] = []
+    for kind, testid, prefix, score_pattern, count_pattern in blocks:
+        block = _testid(soup, testid)
+        if block is None:
+            continue
+        # the first label is the overall score; "User score TBD" means there is none yet
+        label = block.find(attrs={"aria-label": re.compile(f"^{prefix}")})
+        m = re.match(score_pattern, label["aria-label"]) if label else None
+        score = float(m.group(1)) if m else None
+        sentiment = _testid(block, "global-score-sentiment")
+        count = re.search(count_pattern, block.get_text(" ", strip=True))
+        tones = _tones(block)
+        result.append(
+            OverallScore(
+                kind=kind,
+                score=score,
+                verdict=sentiment.get_text(" ", strip=True) if sentiment and score is not None else None,
+                reviews_count=_int(count.group(1)) if count else None,
+                positive=tones.get("positive"),
+                mixed=tones.get("mixed"),
+                negative=tones.get("negative"),
+            )
+        )
+    return result
+
+
 def parse_game(html: str, slug: str) -> Game:
     """Parse a game page. Platforms come without user scores (see parse_user_score)."""
     soup = BeautifulSoup(html, "html.parser")
@@ -107,6 +139,34 @@ def parse_game(html: str, slug: str) -> Game:
         video_url=trailer.get("embedUrl") or trailer.get("contentUrl"),
         genres=_genres(soup, ld),
         platforms=_platform_cards(soup),
+        overall=_overall(soup),
+    )
+
+
+def _tones(block) -> dict[str, int]:
+    """Counts of positive/mixed/negative reviews from labels like '50 positive reviews (98%)'."""
+    tones: dict[str, int] = {}
+    if block is None:
+        return tones
+    for element in block.find_all(attrs={"aria-label": re.compile(r"^[\d,]+ (positive|neutral|negative) reviews")}):
+        m = re.match(r"([\d,]+) (positive|neutral|negative) reviews", element["aria-label"])
+        tone = "mixed" if m.group(2) == "neutral" else m.group(2)
+        tones[tone] = int(m.group(1).replace(",", ""))
+    return tones
+
+
+def parse_review_stats(html: str) -> ReviewStats:
+    """Review totals and the tone split of a game page (for the platform the page shows)."""
+    soup = BeautifulSoup(html, "html.parser")
+    critics = _testid(soup, "product-score")
+    users = _testid(soup, "user-reviews")
+    critics_total = re.search(r"Based on ([\d,]+) Critic Reviews", critics.get_text(" ", strip=True)) if critics else None
+    users_total = re.search(r"Based on ([\d,]+) User Ratings?", users.get_text(" ", strip=True)) if users else None
+    return ReviewStats(
+        critics_total=_int(critics_total.group(1)) if critics_total else None,
+        users_total=_int(users_total.group(1)) if users_total else None,
+        critics_tones=_tones(critics),
+        users_tones=_tones(users),
     )
 
 

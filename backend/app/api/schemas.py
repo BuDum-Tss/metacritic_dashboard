@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 def as_utc(value: datetime | None) -> datetime | None:
@@ -67,6 +67,58 @@ class GameShort(BaseModel):
         return [getattr(g, "name", g) for g in value]
 
 
+class ReviewOut(BaseModel):
+    id: int
+    author: str | None
+    score: int | None
+    date: str | None
+    text: str
+    url: str | None
+    platform: str | None
+
+
+class PointOut(BaseModel):
+    id: int
+    text: str
+    review_ids: list[int]
+
+
+class SummaryOut(BaseModel):
+    generated_at: datetime
+    sample_size: int
+    total_reviews: int | None
+    model: str
+    likes: list[PointOut]
+    dislikes: list[PointOut]
+    reviews: list[ReviewOut]  # the reviews the points refer to, by id
+
+    _utc = field_validator("generated_at")(as_utc)
+
+
+class SummariesOut(BaseModel):
+    critics: SummaryOut | None = None
+    users: SummaryOut | None = None
+
+
+class OverallOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    score: float | None
+    verdict: str | None
+    reviews_count: int | None
+    positive: int | None
+    mixed: int | None
+    negative: int | None
+    captured_at: datetime
+
+    _utc = field_validator("captured_at")(as_utc)
+
+
+class OverallsOut(BaseModel):
+    critics: OverallOut | None = None
+    users: OverallOut | None = None
+
+
 class GameDetail(GameShort):
     url: str
     description: str | None
@@ -75,6 +127,8 @@ class GameDetail(GameShort):
     updated_at: datetime
     last_processed_at: datetime
     similar: list[GameShort] = []
+    overall: OverallsOut = Field(default_factory=OverallsOut)
+    summaries: SummariesOut = Field(default_factory=SummariesOut)
 
     _utc = field_validator("first_seen_at", "updated_at", "last_processed_at")(as_utc)
 

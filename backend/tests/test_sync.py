@@ -6,11 +6,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.db import session as db_session
-from app.db.models import Game, SyncRun
+from app.db.models import Game, ReviewSummary, SyncRun
 from app.db.session import init_db, make_engine, session_scope
 from app.services import sync
 from app.sources.base import Game as SourceGame
-from app.sources.base import PlatformScore
+from app.sources.base import PlatformScore, Review, ReviewBundle
 
 NOW = datetime(2026, 11, 6, 10, 0)
 
@@ -135,3 +135,58 @@ def test_second_cycle_cannot_start_while_one_is_running():
         release.set()
         worker.join()
     assert not sync.is_running()
+
+
+class ReviewingSource(FakeSource):
+    """A source that also has reviews, so summaries can be built."""
+
+    def __init__(self, *args, fail_reviews: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fail_reviews = fail_reviews
+        self.review_fetches: list[str] = []
+
+    def fetch_reviews(self, game):
+        self.review_fetches.append(game.slug)
+        if self.fail_reviews:
+            raise RuntimeError("review pages are down")
+        reviews = [
+            Review(kind=kind, text=f"{kind} text {i}", score=score, author=f"{kind[0]}{i}", date="Nov 1, 2026")
+            for kind in ("critics", "users")
+            for i, score in enumerate([90, 80, 40] if kind == "critics" else [9, 8, 3])
+        ]
+        return ReviewBundle(reviews=reviews)
+
+
+class StubLLM:
+    model = "stub"
+
+    def complete(self, system: str, user: str) -> str:
+        return '{"likes": [{"text": "Good", "reviews": ["R1"]}], "dislikes": [{"text": "Bad", "reviews": ["R2"]}]}'
+
+
+def summary_count() -> int:
+    with session_scope() as s:
+        return s.scalar(select(func.count()).select_from(ReviewSummary))
+
+
+def test_cycle_builds_summaries_when_a_model_is_given():
+    source = ReviewingSource({0: ["a", "b"]})
+    sync.run_cycle(source, "schedule", now=NOW, llm=StubLLM())
+    assert source.review_fetches == ["a", "b"]
+    assert summary_count() == 4  # critics and users for each of the two games
+
+
+def test_cycle_builds_no_summaries_without_a_model():
+    source = ReviewingSource({0: ["a", "b"]})
+    sync.run_cycle(source, "schedule", now=NOW)
+    assert source.review_fetches == []
+    assert summary_count() == 0
+
+
+def test_failing_summaries_do_not_fail_the_game_or_the_run():
+    source = ReviewingSource({0: ["a", "b"]}, fail_reviews=True)
+    sync.run_cycle(source, "schedule", now=NOW, llm=StubLLM())
+    [run] = runs()
+    assert run.status == "success"
+    assert (run.games_processed, run.games_failed) == (2, 0)
+    assert game_count() == 2

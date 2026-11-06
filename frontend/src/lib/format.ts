@@ -25,3 +25,29 @@ export function formatDuration(from: string, to: string | null): string {
   const seconds = Math.max(0, Math.round((end - new Date(from).getTime()) / 1000))
   return seconds < 60 ? `${seconds} с` : `${Math.floor(seconds / 60)} мин ${seconds % 60} с`
 }
+
+export type ReviewTone = 'positive' | 'mixed' | 'negative'
+
+// the same split Metacritic uses for the colours of a score
+export function reviewTone(kind: 'critics' | 'users', score: number): ReviewTone {
+  const tone = kind === 'critics' ? metascoreTone(score) : userscoreTone(score)
+  return tone === 'good' ? 'positive' : tone === 'mixed' ? 'mixed' : 'negative'
+}
+
+export function plural(n: number, forms: [string, string, string]): string {
+  const mod100 = n % 100
+  const mod10 = n % 10
+  if (mod100 >= 11 && mod100 <= 14) return forms[2]
+  if (mod10 === 1) return forms[0]
+  if (mod10 >= 2 && mod10 <= 4) return forms[1]
+  return forms[2]
+}
+
+const COUNT_FORMS: Record<'critics' | 'users', [string, string, string]> = {
+  critics: ['отзыв критика', 'отзыва критиков', 'отзывов критиков'],
+  users: ['оценка игроков', 'оценки игроков', 'оценок игроков'],
+}
+
+export function countLabel(kind: 'critics' | 'users', count: number | null): string {
+  return count === null ? 'нет данных' : `${count} ${plural(count, COUNT_FORMS[kind])}`
+}

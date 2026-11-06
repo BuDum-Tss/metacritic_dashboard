@@ -16,6 +16,44 @@ export interface GameShort {
   platforms: Platform[]
 }
 
+export interface Review {
+  id: number
+  author: string | null
+  score: number | null
+  date: string | null
+  text: string
+  url: string | null
+  platform: string | null
+}
+
+export interface SummaryPoint {
+  id: number
+  text: string
+  review_ids: number[]
+}
+
+export interface ReviewSummary {
+  generated_at: string
+  sample_size: number
+  total_reviews: number | null
+  model: string
+  likes: SummaryPoint[]
+  dislikes: SummaryPoint[]
+  reviews: Review[]
+}
+
+export type ReviewKind = 'critics' | 'users'
+
+export interface Overall {
+  score: number | null
+  verdict: string | null
+  reviews_count: number | null
+  positive: number | null
+  mixed: number | null
+  negative: number | null
+  captured_at: string
+}
+
 export interface GameDetail extends GameShort {
   url: string
   description: string | null
@@ -24,6 +62,8 @@ export interface GameDetail extends GameShort {
   updated_at: string
   last_processed_at: string
   similar: GameShort[]
+  overall: Record<ReviewKind, Overall | null>
+  summaries: Record<ReviewKind, ReviewSummary | null>
 }
 
 export interface GamePage {

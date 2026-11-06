@@ -80,6 +80,59 @@ class GamePlatformHistory(Base):
     captured_at: Mapped[datetime] = mapped_column(DateTime)
 
 
+class GameOverallScore(Base):
+    """Append-only overall scores of critics/users as shown at the top of the game page."""
+
+    __tablename__ = "game_overall_scores"
+    __table_args__ = (Index("ix_overall_game_source_time", "game_id", "source", "captured_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"))
+    source: Mapped[str] = mapped_column(String)  # "critics" | "users"
+    score: Mapped[float | None] = mapped_column(Float)
+    verdict: Mapped[str | None] = mapped_column(String)
+    reviews_count: Mapped[int | None] = mapped_column(Integer)
+    positive: Mapped[int | None] = mapped_column(Integer)
+    mixed: Mapped[int | None] = mapped_column(Integer)
+    negative: Mapped[int | None] = mapped_column(Integer)
+    captured_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class Review(Base):
+    """A review from the sample a summary was built on. Reused by later summaries."""
+
+    __tablename__ = "reviews"
+    __table_args__ = (UniqueConstraint("game_id", "source", "external_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"))
+    source: Mapped[str] = mapped_column(String)  # "critics" | "users"
+    external_key: Mapped[str] = mapped_column(String)
+    platform: Mapped[str | None] = mapped_column(String)
+    author: Mapped[str | None] = mapped_column(String)
+    score: Mapped[int | None] = mapped_column(Integer)
+    reviewed_at: Mapped[str | None] = mapped_column(String)
+    text: Mapped[str] = mapped_column(Text)
+    url: Mapped[str | None] = mapped_column(String)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+summary_point_reviews = Table(
+    "summary_point_reviews",
+    Base.metadata,
+    Column("point_id", ForeignKey("summary_points.id", ondelete="CASCADE"), primary_key=True),
+    Column("review_id", ForeignKey("reviews.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+summary_reviews = Table(
+    "summary_reviews",
+    Base.metadata,
+    Column("summary_id", ForeignKey("review_summaries.id", ondelete="CASCADE"), primary_key=True),
+    Column("review_id", ForeignKey("reviews.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 class ReviewSummary(Base):
     """Append-only versions of review summaries; the latest per (game, source) is current."""
 
@@ -89,10 +142,29 @@ class ReviewSummary(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"))
     source: Mapped[str] = mapped_column(String)  # "critics" | "users"
-    likes: Mapped[str | None] = mapped_column(Text)
-    dislikes: Mapped[str | None] = mapped_column(Text)
     reviews_hash: Mapped[str] = mapped_column(String)
+    sample_size: Mapped[int] = mapped_column(Integer)
+    total_reviews: Mapped[int | None] = mapped_column(Integer)
+    model: Mapped[str] = mapped_column(String)
     generated_at: Mapped[datetime] = mapped_column(DateTime)
+
+    points: Mapped[list["SummaryPoint"]] = relationship(
+        back_populates="summary", cascade="all, delete-orphan", order_by="SummaryPoint.position"
+    )
+    reviews: Mapped[list[Review]] = relationship(secondary=summary_reviews, order_by="Review.id")
+
+
+class SummaryPoint(Base):
+    __tablename__ = "summary_points"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    summary_id: Mapped[int] = mapped_column(ForeignKey("review_summaries.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String)  # "like" | "dislike"
+    position: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+
+    summary: Mapped[ReviewSummary] = relationship(back_populates="points")
+    reviews: Mapped[list[Review]] = relationship(secondary=summary_point_reviews, order_by="Review.id")
 
 
 class SyncRun(Base):

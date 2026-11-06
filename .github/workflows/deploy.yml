@@ -76,6 +76,21 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" 'mkdir -p ~/app'
           scp -i ~/.ssh/deploy_key docker-compose.yml "$SSH_USER@$SSH_HOST:~/app/docker-compose.yml"
+      - name: Write runtime config
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          SITE_ADDRESS: ${{ vars.SITE_ADDRESS }}
+        run: |
+          {
+            if [ -n "$LLM_API_KEY" ]; then printf 'LLM_API_KEY=%s\n' "$LLM_API_KEY"; fi
+            if [ -n "$LLM_BASE_URL" ]; then printf 'LLM_BASE_URL=%s\n' "$LLM_BASE_URL"; fi
+            if [ -n "$LLM_MODEL" ]; then printf 'LLM_MODEL=%s\n' "$LLM_MODEL"; fi
+            if [ -n "$SITE_ADDRESS" ]; then printf 'SITE_ADDRESS=%s\n' "$SITE_ADDRESS"; fi
+          } | ssh -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" 'umask 077 && cat > ~/app/.env'
       - name: Pull images and restart
         env:
           SSH_USER: ${{ secrets.SSH_USER }}

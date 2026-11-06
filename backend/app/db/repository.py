@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Game, GamePlatform, GamePlatformHistory, Genre, SyncRun
+from app.db.models import Game, GameOverallScore, GamePlatform, GamePlatformHistory, Genre, SyncRun
 from app.sources import base
 
 
@@ -79,6 +79,20 @@ def save_game(session: Session, source: str, game: base.Game, now: datetime) -> 
     session.flush()
 
     _save_platforms(session, row, game.platforms, now)
+    for overall in game.overall:
+        session.add(
+            GameOverallScore(
+                game_id=row.id,
+                source=overall.kind,
+                score=overall.score,
+                verdict=overall.verdict,
+                reviews_count=overall.reviews_count,
+                positive=overall.positive,
+                mixed=overall.mixed,
+                negative=overall.negative,
+                captured_at=now,
+            )
+        )
     return SaveResult(game_id=row.id, created=created, changed=changed)
 
 

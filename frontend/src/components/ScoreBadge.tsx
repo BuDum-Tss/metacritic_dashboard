@@ -1,5 +1,5 @@
+import { metascoreTone, userscoreTone, type Tone } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { Tone } from '@/lib/format'
 
 const tones: Record<Tone, string> = {
   good: 'bg-green-600 text-white',
@@ -8,19 +8,31 @@ const tones: Record<Tone, string> = {
   none: 'bg-muted text-muted-foreground',
 }
 
+const sizes = {
+  sm: 'size-8 text-sm',
+  md: 'size-11 text-lg',
+  lg: 'size-16 text-3xl',
+}
+
 interface Props {
+  // critics' scores are rounded squares, players' scores are circles, as on Metacritic
+  kind: 'critic' | 'user'
   value: number | null
-  tone: Tone
-  title: string
+  size?: keyof typeof sizes
+  title?: string
   className?: string
 }
 
-export function ScoreBadge({ value, tone, title, className }: Props) {
+export function ScoreBadge({ kind, value, size = 'sm', title, className }: Props) {
+  const tone = kind === 'critic' ? metascoreTone(value) : userscoreTone(value)
   return (
     <span
-      title={title}
+      title={title ?? (kind === 'critic' ? 'Metascore' : 'Userscore')}
       className={cn(
-        'inline-flex h-7 min-w-9 items-center justify-center rounded px-1.5 text-sm font-bold tabular-nums',
+        'inline-flex shrink-0 items-center justify-center font-bold tabular-nums',
+        kind === 'critic' ? 'rounded-md' : 'rounded-full',
+        sizes[size],
+        value === null && 'text-xs',
         tones[tone],
         className,
       )}
