@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api import games as games_api
 from app.api import sync as sync_api
 from app.db.session import engine, init_db
 from app.scheduler import create_scheduler
@@ -26,6 +27,7 @@ def create_app(source: GameSource | None = None, scheduler_enabled: bool = True)
     app.state.source = source
     app.state.scheduler = None
     app.include_router(sync_api.router)
+    app.include_router(games_api.router)
     return app
 
 
