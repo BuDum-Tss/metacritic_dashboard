@@ -51,6 +51,13 @@ class PlatformOut(BaseModel):
     user_reviews_count: int | None
 
 
+class ScoreOut(BaseModel):
+    """The single score of a game: the average over its platforms."""
+
+    critics: int | None = None  # Metascore scale, whole numbers
+    users: float | None = None  # Userscore scale, one decimal
+
+
 class GameShort(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -60,6 +67,7 @@ class GameShort(BaseModel):
     developer: str | None
     genres: list[str]
     platforms: list[PlatformOut]
+    score: ScoreOut = Field(default_factory=ScoreOut)  # set by the API from the platforms
 
     @field_validator("genres", mode="before")
     @classmethod

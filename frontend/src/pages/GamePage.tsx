@@ -4,8 +4,10 @@ import { Link, useParams } from 'react-router-dom'
 
 import { api, ApiError } from '@/api/client'
 import type { GameDetail } from '@/api/types'
+import { Carousel } from '@/components/Carousel'
 import { GameCard } from '@/components/GameCard'
-import { OverallInline } from '@/components/Overall'
+import { MediaSlider } from '@/components/MediaSlider'
+import { GameScore } from '@/components/GameScore'
 import { ReviewsSection } from '@/components/ReviewsSection'
 import { ScoreBadge } from '@/components/ScoreBadge'
 import { Badge } from '@/components/ui/badge'
@@ -13,22 +15,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { countLabel, formatDateTime } from '@/lib/format'
-
-function Video({ url }: { url: string }) {
-  // jwplayer embed pages can be shown in a frame, other links are opened separately
-  if (url.includes('/players/')) {
-    return (
-      <div className="aspect-video w-full max-w-3xl overflow-hidden rounded-lg bg-black">
-        <iframe src={url} title="Трейлер" allowFullScreen className="h-full w-full" />
-      </div>
-    )
-  }
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="text-sm underline">
-      Смотреть видео
-    </a>
-  )
-}
 
 // the height of an element, kept up to date while it is resized
 function useHeight<T extends HTMLElement>() {
@@ -57,7 +43,7 @@ function Hero({ game: g }: { game: GameDetail }) {
   return (
     <div className="grid items-start gap-6 md:grid-cols-[minmax(0,420px)_1fr]">
       <div ref={coverRef} className="aspect-video w-full overflow-hidden rounded-lg bg-muted">
-        {g.cover_url && <img src={g.cover_url} alt={g.title} className="h-full w-full object-cover" />}
+        <MediaSlider title={g.title} coverUrl={g.cover_url} videoUrl={g.video_url} />
       </div>
       <div>
         <div
@@ -65,9 +51,12 @@ function Hero({ game: g }: { game: GameDetail }) {
           style={collapsed ? { maxHeight: coverHeight ?? undefined } : undefined}
         >
           <div ref={textRef} className="space-y-3">
-            <div>
-              <h1 className="text-3xl font-bold">{g.title}</h1>
-              {g.developer && <p className="text-muted-foreground">Разработчик: {g.developer}</p>}
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="text-3xl font-bold">{g.title}</h1>
+                {g.developer && <p className="text-muted-foreground">Разработчик: {g.developer}</p>}
+              </div>
+              <GameScore score={g.score} size="lg" captions />
             </div>
             {g.genres.length > 0 && (
               <div className="flex flex-wrap gap-1">
@@ -78,7 +67,6 @@ function Hero({ game: g }: { game: GameDetail }) {
                 ))}
               </div>
             )}
-            <OverallInline overall={g.overall} />
             {g.description && <p className="whitespace-pre-line leading-relaxed">{g.description}</p>}
           </div>
           {collapsed && (
@@ -146,13 +134,6 @@ export function GamePage() {
         </p>
       </div>
 
-      {g.video_url && (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Трейлер</h2>
-          <Video url={g.video_url} />
-        </section>
-      )}
-
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Оценки по платформам</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -187,11 +168,11 @@ export function GamePage() {
       {g.similar.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Похожие игры</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Carousel key={g.id}>
             {g.similar.map((other) => (
               <GameCard key={other.id} game={other} />
             ))}
-          </div>
+          </Carousel>
         </section>
       )}
     </div>

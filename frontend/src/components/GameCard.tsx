@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 
-import { ScoreBadge } from '@/components/ScoreBadge'
+import { GameScore } from '@/components/GameScore'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import type { GameShort } from '@/api/types'
@@ -39,17 +39,12 @@ export function GameCard({ game }: { game: GameShort }) {
               ))}
             </div>
           )}
-          <ul className="mt-auto space-y-1 pt-1">
-            {game.platforms.map((p) => (
-              <li key={p.platform} className="flex items-center justify-between gap-2 text-xs">
-                <span className="truncate text-muted-foreground">{p.name}</span>
-                <span className="flex shrink-0 gap-1">
-                  <ScoreBadge kind="critic" value={p.metascore} />
-                  <ScoreBadge kind="user" value={p.userscore} />
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-auto flex items-end justify-between gap-3 pt-1">
+            <p className="line-clamp-2 text-xs text-muted-foreground">
+              {game.platforms.map((p) => p.name).join(' · ')}
+            </p>
+            <GameScore score={game.score} size="md" />
+          </div>
         </div>
       </Card>
     </Link>

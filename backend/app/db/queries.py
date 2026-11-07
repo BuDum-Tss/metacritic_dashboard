@@ -26,11 +26,11 @@ def list_games(
     page: int = 1,
     page_size: int = 24,
 ) -> GamePage:
-    # best score per game: over all platforms, or over the chosen one
+    # the score of a game is the average over its platforms (or the chosen one); NULLs are skipped
     scores = select(
         GamePlatform.game_id,
-        func.max(GamePlatform.metascore).label("metascore"),
-        func.max(GamePlatform.userscore).label("userscore"),
+        func.avg(GamePlatform.metascore).label("metascore"),
+        func.avg(GamePlatform.userscore).label("userscore"),
     ).group_by(GamePlatform.game_id)
     if platform:
         scores = scores.where(GamePlatform.platform == platform)
@@ -125,3 +125,15 @@ def latest_overall(session: Session, game_id: int) -> dict[str, GameOverallScore
         if row is not None:
             result[source] = row
     return result
+
+
+def average_scores(platforms, platform: str | None = None) -> tuple[float | None, float | None]:
+    """The single score of a game: the mean of the platform scores that exist, critics and users
+    separately. With `platform` only that platform counts. (None, None) when there is nothing."""
+    chosen = [p for p in platforms if platform is None or p.platform == platform]
+    critics = [p.metascore for p in chosen if p.metascore is not None]
+    users = [p.userscore for p in chosen if p.userscore is not None]
+    return (
+        sum(critics) / len(critics) if critics else None,
+        sum(users) / len(users) if users else None,
+    )

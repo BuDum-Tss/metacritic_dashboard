@@ -11,11 +11,12 @@ from app.api.schemas import (
     PlatformOption,
     PointOut,
     ReviewOut,
+    ScoreOut,
     SummariesOut,
     SummaryOut,
 )
 from app.db import queries, review_repository
-from app.db.models import ReviewSummary
+from app.db.models import Game, ReviewSummary
 from app.db.session import session_scope
 
 router = APIRouter(prefix="/api/games", tags=["games"])
@@ -33,7 +34,7 @@ def list_games(
     with session_scope() as session:
         result = queries.list_games(session, q, platform, sort, order, page, page_size)
         return GamePageOut(
-            items=[GameShort.model_validate(game) for game in result.items],
+            items=[_short(game, platform) for game in result.items],
             total=result.total,
             page=page,
             page_size=page_size,
@@ -56,12 +57,27 @@ def get_game(game_id: int) -> GameDetail:
         if game is None:
             raise HTTPException(status_code=404, detail="Game not found")
         detail = GameDetail.model_validate(game)
-        detail.similar = [GameShort.model_validate(other) for other in queries.similar_games(session, game)]
+        detail.score = _score(game)
+        detail.similar = [_short(other) for other in queries.similar_games(session, game)]
         overall = queries.latest_overall(session, game_id)
         detail.overall = OverallsOut(**{kind: OverallOut.model_validate(row) for kind, row in overall.items()})
         found = review_repository.latest_summaries(session, game_id)
         detail.summaries = SummariesOut(**{kind: _summary_out(summary) for kind, summary in found.items()})
         return detail
+
+
+def _score(game: Game, platform: str | None = None) -> ScoreOut:
+    critics, users = queries.average_scores(game.platforms, platform)
+    return ScoreOut(
+        critics=int(critics + 0.5) if critics is not None else None,  # half up, not to the even
+        users=round(users, 1) if users is not None else None,
+    )
+
+
+def _short(game: Game, platform: str | None = None) -> GameShort:
+    item = GameShort.model_validate(game)
+    item.score = _score(game, platform)
+    return item
 
 
 def _summary_out(summary: ReviewSummary) -> SummaryOut:

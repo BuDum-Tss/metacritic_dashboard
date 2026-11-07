@@ -7,6 +7,11 @@ export interface Platform {
   user_reviews_count: number | null
 }
 
+export interface Score {
+  critics: number | null
+  users: number | null
+}
+
 export interface GameShort {
   id: number
   title: string
@@ -14,6 +19,7 @@ export interface GameShort {
   developer: string | null
   genres: string[]
   platforms: Platform[]
+  score: Score
 }
 
 export interface Review {

@@ -55,26 +55,3 @@ export function ScoreHeader({ kind, overall }: { kind: ReviewKind; overall: Over
     </div>
   )
 }
-
-// the overall scores in the hero of a game card
-export function OverallInline({ overall }: { overall: Record<ReviewKind, Overall | null> }) {
-  const blocks = (['critics', 'users'] as const).filter((kind) => overall[kind])
-  if (blocks.length === 0) return null
-  return (
-    <div className="flex flex-wrap gap-x-8 gap-y-3">
-      {blocks.map((kind) => {
-        const o = overall[kind]!
-        return (
-          <div key={kind} className="flex items-center gap-3">
-            <ScoreBadge kind={kind === 'critics' ? 'critic' : 'user'} value={o.score} size="md" />
-            <div className="text-sm leading-tight">
-              <p className="font-semibold">{kind === 'critics' ? 'Metascore' : 'Оценка игроков'}</p>
-              <p className="text-muted-foreground">{o.verdict ?? 'оценки пока нет'}</p>
-              <p className="text-xs text-muted-foreground">{countLabel(kind, o.reviews_count)}</p>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}

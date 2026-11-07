@@ -59,8 +59,8 @@ def test_default_sort_is_metascore_desc_with_unrated_last(client):
 
 def test_sort_by_userscore_ascending_keeps_unrated_last(client):
     r = client.get("/api/games?sort=userscore&order=asc")
-    # the best userscore over platforms counts: Doom is 8.5, not 7.0
-    assert titles(r) == ["Lonely", "Super Mario", "Doom 100%", "Zelda", "Quake", "No Scores Game"]
+    # the mean over platforms counts: Doom is (8.5 + 7.0) / 2 = 7.75
+    assert titles(r) == ["Lonely", "Doom 100%", "Super Mario", "Zelda", "Quake", "No Scores Game"]
 
 
 def test_platform_filter_sorts_by_that_platforms_score(client):
@@ -209,3 +209,37 @@ def test_summary_reviews_are_the_whole_sample_not_only_the_cited_ones(client):
     users = client.get(f"/api/games/{game_id}").json()["summaries"]["users"]
     assert sorted(r["text"] for r in users["reviews"]) == ["review 0", "review 1", "review 2", "review 3"]
     assert len(users["likes"][0]["review_ids"]) == 1
+
+
+def scores(response) -> dict[str, tuple]:
+    return {i["title"]: (i["score"]["critics"], i["score"]["users"]) for i in response.json()["items"]}
+
+
+def test_every_game_has_one_score_the_mean_over_its_platforms(client):
+    assert scores(client.get("/api/games")) == {
+        "Zelda": (96, 9.0),
+        "Doom 100%": (90, 7.8),  # (88 + 91) / 2 = 89.5 rounds half up; (8.5 + 7.0) / 2 = 7.75
+        "Super Mario": (88, 8.0),  # (90 + 85) / 2 = 87.5; the platform without a userscore is skipped
+        "Quake": (80, 9.5),
+        "Lonely": (70, 6.0),
+        "No Scores Game": (None, None),
+    }
+
+
+def test_score_follows_the_platform_filter(client):
+    assert scores(client.get("/api/games?platform=pc")) == {
+        "Doom 100%": (88, 8.5),
+        "Super Mario": (85, None),
+        "Quake": (80, 9.5),
+        "Lonely": (70, 6.0),
+        "No Scores Game": (None, None),
+    }
+
+
+def test_game_card_and_similar_games_carry_the_same_score(client):
+    r = client.get("/api/games?q=Zelda").json()["items"][0]
+    detail = client.get(f"/api/games/{r['id']}").json()
+    assert detail["score"] == r["score"] == {"critics": 96, "users": 9.0}
+    assert all("score" in similar for similar in detail["similar"])
+    mario = next(s for s in detail["similar"] if s["title"] == "Super Mario")
+    assert mario["score"] == {"critics": 88, "users": 8.0}
