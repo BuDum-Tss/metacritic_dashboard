@@ -19,6 +19,7 @@ erDiagram
     games ||--o{ game_overall_scores : "overall scores over time"
     games ||--o{ review_summaries : "summaries over time"
     games ||--o{ reviews : "analyzed sample"
+    games ||--o{ analysis_state : "analysis checks"
     review_summaries ||--o{ summary_points : has
     review_summaries ||--o{ summary_reviews : "sample"
     reviews ||--o{ summary_reviews : "in sample"
@@ -50,8 +51,9 @@ erDiagram
 | `first_seen_at` | TEXT NOT NULL | когда игра впервые попала в базу |
 | `updated_at` | TEXT NOT NULL | когда описательные поля менялись в последний раз |
 | `last_processed_at` | TEXT NOT NULL | когда игра обрабатывалась в последний раз |
+| `next_check_at` | TEXT NOT NULL | когда игру пора проверить в следующий раз (расписание повторных визитов) |
 
-Индексы: `(source, slug)` (уникальный), `last_processed_at` (для пропуска игр, обработанных сегодня).
+Индексы: `(source, slug)` (уникальный), `last_processed_at`, `next_check_at` (выбор игр, которые пора проверить).
 
 ### `genres`
 
@@ -192,17 +194,31 @@ erDiagram
 
 Первичный ключ: `(point_id, review_id)`.
 
+### `analysis_state`
+
+Когда последний раз проверяли отзывы игры и сколько их тогда было. По нему анализ не возвращает в очередь игру, у которой число отзывов не изменилось.
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `game_id` | INTEGER FK → games.id | |
+| `kind` | TEXT NOT NULL | `critics` или `users` |
+| `checked_at` | TEXT NOT NULL | когда проверка была завершена |
+| `total_reviews` | INTEGER NOT NULL | сколько отзывов этого типа было у игры при проверке |
+
+Первичный ключ: `(game_id, kind)`; строка обновляется при каждой проверке.
+
 ### `sync_runs`
 
-Журнал запусков обработки. Из него выводится следующая пачка игр и берутся данные для мониторинга.
+Журнал запусков обоих конвейеров. Из него берутся данные для мониторинга.
 
 | Поле | Тип | Описание |
 |---|---|---|
 | `id` | INTEGER PK | |
+| `pipeline` | TEXT NOT NULL | конвейер: `crawl` (обход) или `analysis` (анализ отзывов) |
 | `trigger` | TEXT NOT NULL | `schedule` или `manual` |
 | `status` | TEXT NOT NULL | `running`, `success`, `failed` |
 | `source` | TEXT NOT NULL | источник данных: `metacritic` |
-| `batch_index` | INTEGER NOT NULL | порядковый номер пачки за день, начиная с 0 |
+| `batch_index` | INTEGER NOT NULL | порядковый номер успешного запуска источника за день, начиная с 0 (справочно) |
 | `started_at` | TEXT NOT NULL | |
 | `finished_at` | TEXT | |
 | `games_found` | INTEGER | |
