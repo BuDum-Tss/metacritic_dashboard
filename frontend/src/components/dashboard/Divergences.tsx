@@ -45,7 +45,7 @@ function Column({ title, subtitle, items }: { title: string; subtitle: string; i
 export function Divergences({ criticsLove, playersLove }: { criticsLove: Divergence[]; playersLove: Divergence[] }) {
   return (
     <section className="space-y-3">
-      <h2 className="flex items-center gap-2 text-xl font-semibold">
+      <h2 className="flex items-center justify-between gap-2 text-xl font-semibold">
         Где критики и игроки расходятся
         <InfoTip>
           Разрыв считается между Metascore и Userscore × 10. В списки попадают игры, у которых разрыв больше 10 баллов

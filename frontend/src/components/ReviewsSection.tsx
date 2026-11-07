@@ -2,6 +2,7 @@ import { ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useState } from 'react'
 
 import type { Overall, Review, ReviewKind, ReviewSummary, SummaryPoint } from '@/api/types'
+import { InfoTip } from '@/components/InfoTip'
 import { ScoreHeader } from '@/components/Overall'
 import { ScoreBadge } from '@/components/ScoreBadge'
 import { Button } from '@/components/ui/button'
@@ -156,14 +157,17 @@ function ReviewPane({
         <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <Card>
             <CardContent className="space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Резюме ИИ по {summary.sample_size}
-                {summary.total_reviews ? ` из ${summary.total_reviews}` : ''} отзывов · {summary.model} ·{' '}
-                {formatDateTime(summary.generated_at)}. Нажмите на пункт, чтобы оставить справа только отзывы, на
-                которых он основан.
-                {kind === 'critics' &&
-                  ' Доступные отзывы критиков смещены к высоким оценкам: отсутствие критики здесь не значит, что недостатков нет.'}
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-base font-semibold">Резюме ИИ</h3>
+                <InfoTip>
+                  Резюме ИИ по {summary.sample_size}
+                  {summary.total_reviews ? ` из ${summary.total_reviews}` : ''} отзывов · {summary.model} ·{' '}
+                  {formatDateTime(summary.generated_at)}. Нажмите на пункт, чтобы оставить справа только отзывы, на
+                  которых он основан.
+                  {kind === 'critics' &&
+                    ' Доступные отзывы критиков смещены к высоким оценкам: отсутствие критики здесь не значит, что недостатков нет.'}
+                </InfoTip>
+              </div>
               <PointGroup kind="like" points={likes} activeId={pointId} onToggle={toggle} />
               <PointGroup kind="dislike" points={dislikes} activeId={pointId} onToggle={toggle} />
             </CardContent>

@@ -58,7 +58,7 @@ export function Rhythm({
 
   return (
     <section className="space-y-3">
-      <h2 className="flex items-center gap-2 text-xl font-semibold">
+      <h2 className="flex items-center justify-between gap-2 text-xl font-semibold">
         Ритм рынка
         <InfoTip>Игры по дате релиза за последние 30 дней. {note}</InfoTip>
       </h2>

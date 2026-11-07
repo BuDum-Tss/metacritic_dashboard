@@ -28,7 +28,7 @@ export function DashboardPage() {
   const data = dashboard.data
   return (
     <div className="space-y-8">
-      <h1 className="flex items-center gap-2 text-3xl font-bold">
+      <h1 className="flex items-center justify-between gap-2 text-3xl font-bold">
         Рынок игр
         <InfoTip>Какие игры успешнее и почему, по данным Metacritic.</InfoTip>
       </h1>
@@ -51,7 +51,7 @@ export function DashboardPage() {
         <div className={cn('space-y-8 transition-opacity', dashboard.isFetching && 'opacity-70')}>
           <Tiles tiles={data.tiles} />
           {/* the map is square; the genres take the rest of the row */}
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
+          <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
             <SuccessMap points={data.map.points} attentionMedian={data.map.attention_median} />
             <GenreTable genres={data.genres} />
           </div>

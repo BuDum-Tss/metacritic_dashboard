@@ -7,7 +7,7 @@ function Tile({ label, value, note }: { label: string; value: string; note: stri
   return (
     <Card size="sm">
       <CardContent className="space-y-1">
-        <p className="flex items-center gap-1 text-sm text-muted-foreground">
+        <p className="flex items-center justify-between gap-1 text-sm text-muted-foreground">
           {label}
           <InfoTip>{note}</InfoTip>
         </p>
