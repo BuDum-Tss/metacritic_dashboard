@@ -4,6 +4,7 @@ import { Bar, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer
 import type { RhythmDay } from '@/api/types'
 import { ChartCard } from '@/components/dashboard/ChartCard'
 import { DataTable } from '@/components/dashboard/DataTable'
+import { InfoTip } from '@/components/InfoTip'
 import { decimal } from '@/lib/format'
 
 interface Row extends RhythmDay {
@@ -57,12 +58,12 @@ export function Rhythm({
 
   return (
     <section className="space-y-3">
-      <div>
-        <h2 className="text-xl font-semibold">Ритм рынка</h2>
-        <p className="text-sm text-muted-foreground">Игры по дате релиза за последние 30 дней. {note}</p>
-      </div>
+      <h2 className="flex items-center gap-2 text-xl font-semibold">
+        Ритм рынка
+        <InfoTip>Игры по дате релиза за последние 30 дней. {note}</InfoTip>
+      </h2>
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Сколько игр выходит" subtitle="Релизов в день и среднее за скользящие 7 дней">
+        <ChartCard title="Сколько игр выходит" info="Релизов в день и среднее за скользящие 7 дней">
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
             <LegendItem mark={<span className="size-2.5 rounded-sm" style={{ background: 'var(--viz-accent-soft)' }} />}>
               Релизов за день
@@ -109,7 +110,7 @@ export function Rhythm({
           </div>
         </ChartCard>
 
-        <ChartCard title="Растёт ли качество новинок" subtitle="Средний Metascore игр, вышедших за скользящие 7 дней">
+        <ChartCard title="Растёт ли качество новинок" info="Средний Metascore игр, вышедших за скользящие 7 дней">
           {lastScored < 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
               Пока нет игр с оценкой критиков и известной датой релиза за этот период.

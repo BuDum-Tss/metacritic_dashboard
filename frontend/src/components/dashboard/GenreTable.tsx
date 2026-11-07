@@ -23,7 +23,7 @@ export function GenreTable({ genres }: { genres: GenreStat[] }) {
   return (
     <ChartCard
       title="Жанры"
-      subtitle="Какие жанры успешнее: средние оценки и число оценок игроков на игру жанра. Только жанры, где не меньше 3 игр."
+      info="Какие жанры успешнее: средние оценки и число оценок игроков на игру жанра. Только жанры, где не меньше 3 игр."
     >
       {genres.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">

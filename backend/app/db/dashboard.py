@@ -21,6 +21,7 @@ MIN_GENRE_GAMES = 3
 TOP_GENRES = 10
 MIN_RATINGS = 10  # a gap between critics and players says nothing on a handful of ratings
 TOP_DIVERGENCES = 5
+MIN_GAP = 10  # a smaller gap (in points of 100) is agreement: well-rated games differ by that much
 RHYTHM_DAYS = 30
 TREND_DAYS = 7  # the window of the moving averages
 
@@ -135,8 +136,8 @@ def _divergences(session: Session, both: list[GameStat]) -> dict:
             "reason": _reason(session, g.id, unhappy),
         }
 
-    critics_love = sorted((g for g in eligible if gap(g) > 0), key=gap, reverse=True)[:TOP_DIVERGENCES]
-    players_love = sorted((g for g in eligible if gap(g) < 0), key=gap)[:TOP_DIVERGENCES]
+    critics_love = sorted((g for g in eligible if gap(g) > MIN_GAP), key=gap, reverse=True)[:TOP_DIVERGENCES]
+    players_love = sorted((g for g in eligible if gap(g) < -MIN_GAP), key=gap)[:TOP_DIVERGENCES]
     return {
         "critics_love": [row(g, "users") for g in critics_love],
         "players_love": [row(g, "critics") for g in players_love],

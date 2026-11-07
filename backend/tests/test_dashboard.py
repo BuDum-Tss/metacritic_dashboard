@@ -120,12 +120,24 @@ def test_divergences_name_who_is_unhappy_and_why(market):
     assert loved_by_players["reason"] == {"source": "critics", "text": "Slow story"}
 
 
-def test_divergences_skip_games_with_few_ratings_and_have_no_reason_without_a_summary(market):
+def test_divergences_skip_games_with_few_ratings(market):
     result = build()["divergences"]
     titles = [item["title"] for item in result["critics_love"] + result["players_love"]]
     assert "Few_Ratings" not in titles  # a gap of 65 on five ratings says nothing
-    hit = next(item for item in result["critics_love"] if item["title"] == "Hit")
-    assert hit["reason"] is None
+    assert "Hit" not in titles  # critics and players agree within a point
+
+
+def test_a_gap_within_ten_points_is_agreement_not_divergence(database):
+    with session_scope() as s:
+        add(s, "edge", [], [("pc", 75, 6.5, 5, 50)])  # exactly 10: still agreement
+        add(s, "mild_players", [], [("pc", 83, 9.0, 5, 50)])  # -7: a well-rated game both sides like
+        add(s, "just_over", [], [("pc", 76, 6.5, 5, 50)])  # 11
+        add(s, "wide_players", [], [("pc", 60, 8.0, 5, 50)])  # -20
+    result = build()["divergences"]
+    assert [item["title"] for item in result["critics_love"]] == ["Just_Over"]
+    assert result["critics_love"][0]["gap"] == pytest.approx(11.0)
+    assert result["critics_love"][0]["reason"] is None  # no summary yet
+    assert [item["title"] for item in result["players_love"]] == ["Wide_Players"]
 
 
 def test_rhythm_counts_releases_by_day_with_moving_averages(market):

@@ -9,6 +9,7 @@ import { Rhythm } from '@/components/dashboard/Rhythm'
 import { SuccessMap } from '@/components/dashboard/SuccessMap'
 import { Tiles } from '@/components/dashboard/Tiles'
 import { GameCard } from '@/components/GameCard'
+import { InfoTip } from '@/components/InfoTip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
@@ -27,10 +28,10 @@ export function DashboardPage() {
   const data = dashboard.data
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Рынок игр</h1>
-        <p className="text-muted-foreground">Какие игры успешнее и почему, по данным Metacritic</p>
-      </div>
+      <h1 className="flex items-center gap-2 text-3xl font-bold">
+        Рынок игр
+        <InfoTip>Какие игры успешнее и почему, по данным Metacritic.</InfoTip>
+      </h1>
 
       {dashboard.isError && <p className="text-destructive">Не удалось загрузить дашборд: {dashboard.error.message}</p>}
 

@@ -2,11 +2,10 @@ import { Link } from 'react-router-dom'
 
 import type { Divergence } from '@/api/types'
 import { ChartCard } from '@/components/dashboard/ChartCard'
+import { InfoTip } from '@/components/InfoTip'
 import { ScoreBadge } from '@/components/ScoreBadge'
-import { decimal } from '@/lib/format'
 
 function Row({ item }: { item: Divergence }) {
-  const sign = item.gap > 0 ? '+' : '−'
   return (
     <li className="space-y-1 py-3">
       <div className="flex items-center gap-3">
@@ -17,10 +16,6 @@ function Row({ item }: { item: Divergence }) {
           <ScoreBadge kind="critic" value={item.critics} />
           <ScoreBadge kind="user" value={item.users} />
         </div>
-        <span className="w-14 shrink-0 text-right text-sm tabular-nums text-muted-foreground" title="Разрыв, баллов из 100">
-          {sign}
-          {decimal(Math.abs(item.gap), 0)}
-        </span>
       </div>
       <p className="text-xs text-muted-foreground">
         {item.reason
@@ -33,7 +28,7 @@ function Row({ item }: { item: Divergence }) {
 
 function Column({ title, subtitle, items }: { title: string; subtitle: string; items: Divergence[] }) {
   return (
-    <ChartCard title={title} subtitle={subtitle}>
+    <ChartCard title={title} info={subtitle}>
       {items.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Пока нет игр с заметным разрывом.</p>
       ) : (
@@ -50,12 +45,13 @@ function Column({ title, subtitle, items }: { title: string; subtitle: string; i
 export function Divergences({ criticsLove, playersLove }: { criticsLove: Divergence[]; playersLove: Divergence[] }) {
   return (
     <section className="space-y-3">
-      <div>
-        <h2 className="text-xl font-semibold">Где критики и игроки расходятся</h2>
-        <p className="text-sm text-muted-foreground">
-          Разрыв считается между Metascore и Userscore × 10; учитываются игры, у которых не меньше 10 оценок игроков.
-        </p>
-      </div>
+      <h2 className="flex items-center gap-2 text-xl font-semibold">
+        Где критики и игроки расходятся
+        <InfoTip>
+          Разрыв считается между Metascore и Userscore × 10. В списки попадают игры, у которых разрыв больше 10 баллов
+          (меньшая разница считается согласием) и не меньше 10 оценок игроков.
+        </InfoTip>
+      </h2>
       <div className="grid gap-4 lg:grid-cols-2">
         <Column title="Критики хвалят, игроки нет" subtitle="Чем недовольны игроки" items={criticsLove} />
         <Column title="Игроки любят, критики нет" subtitle="Чем недовольны критики" items={playersLove} />

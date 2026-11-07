@@ -1,4 +1,5 @@
 import type { DashboardTiles } from '@/api/types'
+import { InfoTip } from '@/components/InfoTip'
 import { Card, CardContent } from '@/components/ui/card'
 import { decimal } from '@/lib/format'
 
@@ -6,9 +7,11 @@ function Tile({ label, value, note }: { label: string; value: string; note: stri
   return (
     <Card size="sm">
       <CardContent className="space-y-1">
-        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="flex items-center gap-1 text-sm text-muted-foreground">
+          {label}
+          <InfoTip>{note}</InfoTip>
+        </p>
         <p className="text-3xl font-semibold">{value}</p>
-        <p className="text-xs text-muted-foreground">{note}</p>
       </CardContent>
     </Card>
   )

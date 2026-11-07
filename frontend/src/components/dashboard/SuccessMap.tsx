@@ -111,7 +111,15 @@ export function SuccessMap({ points, attentionMedian }: { points: MapPoint[]; at
   return (
     <ChartCard
       title="Карта успеха"
-      subtitle="Каждая точка — игра: по горизонтали внимание (число оценок игроков), по вертикали оценка. Клик открывает игру."
+      info={
+        <div className="space-y-2">
+          <p>Каждая точка — игра: по горизонтали внимание (число оценок игроков), по вертикали оценка. Клик по точке открывает игру.</p>
+          <p>
+            Линии: оценка {decimal(threshold, Number.isInteger(threshold) ? 0 : 1)} ({label}) и медианное внимание
+            {median !== null ? `, ${median.toLocaleString('ru-RU')} оценок` : ''}.
+          </p>
+        </div>
+      }
       action={
         <div className="flex gap-1" role="group" aria-label="Оценка на вертикальной оси">
           {(['critics', 'users'] as const).map((key) => (
@@ -177,10 +185,6 @@ export function SuccessMap({ points, attentionMedian }: { points: MapPoint[]; at
               </ScatterChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Линии: оценка {decimal(threshold, Number.isInteger(threshold) ? 0 : 1)} ({label}) и медианное внимание
-            {median !== null ? `, ${median.toLocaleString('ru-RU')} оценок` : ''}.
-          </p>
           <DataTable
             columns={[
               { key: 'title', label: 'Игра' },

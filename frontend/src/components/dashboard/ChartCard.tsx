@@ -1,17 +1,18 @@
 import type { ReactNode } from 'react'
 
+import { InfoTip } from '@/components/InfoTip'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-// A card around one block of the dashboard: the title names what is plotted, the subtitle says how to read it.
+// A card around one block of the dashboard: the title names what is plotted, the "i" says how to read it.
 export function ChartCard({
   title,
-  subtitle,
+  info,
   action,
   children,
   className,
 }: {
   title: string
-  subtitle?: string
+  info?: ReactNode
   action?: ReactNode
   children: ReactNode
   className?: string
@@ -20,10 +21,10 @@ export function ChartCard({
     <Card className={className}>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle className="text-lg">{title}</CardTitle>
-            {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
-          </div>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            {title}
+            {info && <InfoTip>{info}</InfoTip>}
+          </CardTitle>
           {action}
         </div>
       </CardHeader>
