@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Game, GameOverallScore, GamePlatform, GamePlatformHistory, Genre, SyncRun
+from app.db.models import Game, GameOverallScore, GamePlatform, GamePlatformHistory, Genre, RunGame, SyncRun
 from app.sources import base
 
 
@@ -163,6 +163,34 @@ def start_run(
     session.add(run)
     session.flush()
     return run
+
+
+def add_run_game(
+    session: Session,
+    run_id: int,
+    source: str,
+    slug: str,
+    outcome: str,
+    details: dict | None = None,
+    error: str | None = None,
+) -> None:
+    """Record that a run worked on a game. The title is taken from the stored game, if there is one."""
+    game = session.scalar(select(Game).where(Game.source == source, Game.slug == slug))
+    session.add(
+        RunGame(
+            run_id=run_id,
+            game_id=game.id if game else None,
+            slug=slug,
+            title=game.title if game else None,
+            outcome=outcome,
+            details=details,
+            error=error,
+        )
+    )
+
+
+def list_run_games(session: Session, run_id: int) -> list[RunGame]:
+    return list(session.scalars(select(RunGame).where(RunGame.run_id == run_id).order_by(RunGame.id)))
 
 
 def update_progress(session: Session, run_id: int, found: int, processed: int, failed: int) -> None:

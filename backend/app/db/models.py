@@ -1,6 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, Table, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -194,4 +206,19 @@ class SyncRun(Base):
     games_found: Mapped[int | None] = mapped_column(Integer)
     games_processed: Mapped[int | None] = mapped_column(Integer)
     games_failed: Mapped[int | None] = mapped_column(Integer)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class RunGame(Base):
+    """A game a pipeline run worked on, with the outcome. Written as the run goes."""
+
+    __tablename__ = "run_games"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("sync_runs.id", ondelete="CASCADE"), index=True)
+    game_id: Mapped[int | None] = mapped_column(ForeignKey("games.id", ondelete="SET NULL"))
+    slug: Mapped[str] = mapped_column(String)
+    title: Mapped[str | None] = mapped_column(String)
+    outcome: Mapped[str] = mapped_column(String)
+    details: Mapped[dict | None] = mapped_column(JSON)
     error: Mapped[str | None] = mapped_column(Text)

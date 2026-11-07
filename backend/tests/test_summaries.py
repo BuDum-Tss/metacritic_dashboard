@@ -89,14 +89,17 @@ def checks() -> dict[str, tuple[datetime, int]]:
         return {st.kind: (st.checked_at, st.total_reviews) for st in s.scalars(select(AnalysisState))}
 
 
-def build(source, game_id, llm, plans, now=NOW) -> int:
+def build(source, game_id, llm, plans, now=NOW) -> dict[str, str]:
     return summaries.build_summaries(source, GAME, game_id, plans, llm, now)
 
 
 def test_both_summaries_are_created_with_points_linked_to_reviews(game_id):
     source = FakeSource(make_reviews("critics", [95, 90, 60, 80]) + make_reviews("users", [10, 9, 4, 8, 2]))
 
-    assert build(source, game_id, FakeLLM(), {"critics": CRITICS, "users": USERS}) == 2
+    assert build(source, game_id, FakeLLM(), {"critics": CRITICS, "users": USERS}) == {
+        "critics": "created",
+        "users": "created",
+    }
 
     with session_scope() as session:
         critics = repo.latest_summary(session, game_id, "critics")
@@ -169,21 +172,22 @@ def test_unusable_answers_are_errors(answer):
 def test_a_sample_that_is_too_small_gives_no_summary_but_is_remembered(game_id):
     source = FakeSource(make_reviews("critics", [95, 90]))  # the site counted 3, but only 2 have a text
     llm = FakeLLM()
-    assert build(source, game_id, llm, {"critics": repo.KindPlan(3, {})}) == 0
+    assert build(source, game_id, llm, {"critics": repo.KindPlan(3, {})}) == {"critics": "too_few"}
     assert llm.prompts == []
     assert checks() == {"critics": (NOW, 3)}  # not asked about again until the number changes
 
 
 def test_a_model_that_is_not_available_leaves_no_trace_so_the_next_run_tries_again(game_id):
     source = FakeSource(make_reviews("critics", [95, 90, 60]))
-    assert build(source, game_id, FakeLLM(error=LLMError("down")), {"critics": CRITICS}) == 0
+    result = build(source, game_id, FakeLLM(error=LLMError("down")), {"critics": CRITICS})
+    assert result == {"critics": "model_unavailable"}
     assert summary_count() == 0
     assert checks() == {}
 
 
 def test_an_unparsable_answer_leaves_no_summary_but_is_remembered(game_id):
     source = FakeSource(make_reviews("critics", [95, 90, 60]))
-    assert build(source, game_id, FakeLLM("sorry, no"), {"critics": CRITICS}) == 0
+    assert build(source, game_id, FakeLLM("sorry, no"), {"critics": CRITICS}) == {"critics": "bad_answer"}
     assert summary_count() == 0
     assert checks() == {"critics": (NOW, 51)}  # the model answered: no more tokens until the reviews change
 
@@ -196,7 +200,7 @@ def test_the_same_sample_costs_no_tokens(game_id):
     llm = FakeLLM()
     later = NOW + timedelta(hours=25)
     # the site counts one more review, but our sample is the same
-    assert build(source, game_id, llm, {"users": repo.KindPlan(1001, {})}, later) == 0
+    assert build(source, game_id, llm, {"users": repo.KindPlan(1001, {})}, later) == {"users": "same_sample"}
     assert llm.prompts == []
     assert summary_count() == 1
     assert checks() == {"users": (later, 1001)}
@@ -208,7 +212,7 @@ def test_changed_reviews_add_a_new_version_and_reuse_the_known_ones(game_id):
 
     source.reviews = make_reviews("users", [10, 9, 4]) + make_reviews("users", [7], prefix="new ")
     later = NOW + timedelta(hours=25)
-    assert build(source, game_id, FakeLLM(), {"users": repo.KindPlan(4, {})}, later) == 1
+    assert build(source, game_id, FakeLLM(), {"users": repo.KindPlan(4, {})}, later) == {"users": "created"}
 
     assert summary_count() == 2
     with session_scope() as s:

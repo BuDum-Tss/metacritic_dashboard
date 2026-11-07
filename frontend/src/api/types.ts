@@ -102,6 +102,15 @@ export interface SyncRun {
   error: string | null
 }
 
+export interface RunGame {
+  game_id: number | null
+  slug: string
+  title: string | null
+  outcome: string
+  details: Record<string, string> | null
+  error: string | null
+}
+
 export interface PipelineStatus {
   running: boolean
   enabled: boolean

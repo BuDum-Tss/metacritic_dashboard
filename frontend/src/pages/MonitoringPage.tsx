@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Fragment, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { api, ApiError } from '@/api/client'
 import type { Pipeline, PipelineStatus, SyncRun } from '@/api/types'
@@ -38,6 +40,94 @@ function Progress({ run }: { run: SyncRun }) {
   )
 }
 
+const outcomeLabels: Record<string, string> = {
+  new: 'Новая',
+  revisited: 'Обновлена',
+  summarized: 'Резюме построено',
+  checked: 'Без изменений',
+  retry: 'Повтор позже',
+  failed: 'Ошибка',
+}
+
+const kindLabels: Record<string, string> = { critics: 'критики', users: 'игроки' }
+
+const resultLabels: Record<string, string> = {
+  created: 'резюме построено',
+  same_sample: 'выборка прежняя',
+  too_few: 'мало отзывов в выборке',
+  model_unavailable: 'модель недоступна',
+  bad_answer: 'неразборчивый ответ модели',
+}
+
+// the games a run worked on; the list grows while the run goes
+function RunGames({ run }: { run: SyncRun }) {
+  const games = useQuery({
+    queryKey: ['sync', 'run-games', run.id],
+    queryFn: () => api.runGames(run.id),
+    refetchInterval: run.status === 'running' ? FAST_POLL_MS : false,
+  })
+
+  if (games.isPending) return <p className="text-sm text-muted-foreground">Загрузка…</p>
+  if (games.isError) return <p className="text-sm text-destructive">Не удалось загрузить: {games.error.message}</p>
+  if (games.data.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {run.status === 'running'
+          ? 'Пока ни одной игры.'
+          : 'Нет данных об играх этого запуска: он сделан до появления журнала игр или обрабатывать было нечего.'}
+      </p>
+    )
+  }
+  return (
+    <div className="max-h-96 overflow-y-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Игра</TableHead>
+            <TableHead>Итог</TableHead>
+            <TableHead>Подробности</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {games.data.map((game, index) => (
+            <TableRow key={index}>
+              <TableCell>
+                {game.game_id ? (
+                  <Link to={`/games/${game.game_id}`} className="underline">
+                    {game.title ?? game.slug}
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground">{game.slug}</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <Badge
+                  variant={
+                    game.outcome === 'failed' ? 'destructive' : game.outcome === 'retry' ? 'outline' : 'secondary'
+                  }
+                >
+                  {outcomeLabels[game.outcome] ?? game.outcome}
+                </Badge>
+              </TableCell>
+              <TableCell className="whitespace-normal text-sm">
+                {game.error ? (
+                  <span className="text-destructive">{game.error}</span>
+                ) : game.details ? (
+                  Object.entries(game.details)
+                    .map(([kind, result]) => `${kindLabels[kind] ?? kind}: ${resultLabels[result] ?? result}`)
+                    .join(' · ')
+                ) : (
+                  '—'
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
 const PIPELINES: { pipeline: Pipeline; title: string; description: string; startLabel: string }[] = [
   {
     pipeline: 'crawl',
@@ -67,6 +157,7 @@ function PipelinePanel({
   status: PipelineStatus | undefined
 }) {
   const queryClient = useQueryClient()
+  const [openRun, setOpenRun] = useState<number | null>(null)
   const running = status?.running ?? false
   const off = status !== undefined && !status.enabled
 
@@ -159,20 +250,47 @@ function PipelinePanel({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {(runs.data ?? []).map((run) => (
-            <TableRow key={run.id}>
-              <TableCell>{run.id}</TableCell>
-              <TableCell title={run.error ?? undefined}>
-                <StatusBadge status={run.status} />
-              </TableCell>
-              <TableCell>{run.trigger === 'manual' ? 'Вручную' : 'По расписанию'}</TableCell>
-              <TableCell>{formatDateTime(run.started_at)}</TableCell>
-              <TableCell>{formatDuration(run.started_at, run.finished_at)}</TableCell>
-              <TableCell>{run.games_found ?? '—'}</TableCell>
-              <TableCell>{run.games_processed ?? '—'}</TableCell>
-              <TableCell>{run.games_failed ?? '—'}</TableCell>
-            </TableRow>
-          ))}
+          {(runs.data ?? []).map((run) => {
+            const open = openRun === run.id
+            const toggle = () => setOpenRun(open ? null : run.id)
+            return (
+              <Fragment key={run.id}>
+                <TableRow
+                  className="cursor-pointer"
+                  tabIndex={0}
+                  aria-expanded={open}
+                  onClick={toggle}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      toggle()
+                    }
+                  }}
+                >
+                  <TableCell>
+                    <span className="mr-1 text-muted-foreground">{open ? '▾' : '▸'}</span>
+                    {run.id}
+                  </TableCell>
+                  <TableCell title={run.error ?? undefined}>
+                    <StatusBadge status={run.status} />
+                  </TableCell>
+                  <TableCell>{run.trigger === 'manual' ? 'Вручную' : 'По расписанию'}</TableCell>
+                  <TableCell>{formatDateTime(run.started_at)}</TableCell>
+                  <TableCell>{formatDuration(run.started_at, run.finished_at)}</TableCell>
+                  <TableCell>{run.games_found ?? '—'}</TableCell>
+                  <TableCell>{run.games_processed ?? '—'}</TableCell>
+                  <TableCell>{run.games_failed ?? '—'}</TableCell>
+                </TableRow>
+                {open && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="bg-muted/30 whitespace-normal">
+                      <RunGames run={run} />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            )
+          })}
           {runs.data?.length === 0 && (
             <TableRow>
               <TableCell colSpan={8} className="py-6 text-center text-muted-foreground">

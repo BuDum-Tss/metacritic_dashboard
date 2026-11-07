@@ -57,15 +57,22 @@ def _run(source: GameSource, trigger: str, started: datetime, budget: int, llm: 
         log.info("analysis run %d: %d games in the queue", run_id, found)
 
         for item in queue:
+            details, error = None, None
             try:
                 with session_scope() as session:
                     game = repository.load_source_game(session, item.game_id)
-                summaries.build_summaries(source, game, item.game_id, item.plans, llm, repository.utcnow())
+                details = summaries.build_summaries(
+                    source, game, item.game_id, item.plans, llm, repository.utcnow()
+                )
                 processed += 1
-            except Exception:
+                results = set(details.values())
+                outcome = "summarized" if "created" in results else "retry" if "model_unavailable" in results else "checked"
+            except Exception as exc:
                 log.exception("failed to analyze game %s", item.slug)
+                outcome, error = "failed", f"{type(exc).__name__}: {exc}"
                 failed += 1
             with session_scope() as session:
+                repository.add_run_game(session, run_id, source.name, item.slug, outcome, details, error)
                 repository.update_progress(session, run_id, found, processed, failed)
 
         status, error = "success", None

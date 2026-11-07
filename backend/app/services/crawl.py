@@ -22,14 +22,15 @@ def run_crawl(source: GameSource, trigger: str, now: datetime | None = None, bud
         return _run(source, trigger, now or repository.utcnow(), budget or settings.crawl_budget)
 
 
-def _process(source: GameSource, ref: str) -> None:
-    """Load a game by its own ref, store it and schedule the next visit."""
+def _process(source: GameSource, ref: str) -> bool:
+    """Load a game by its own ref, store it and schedule the next visit. True for a new game."""
     game = source.fetch_game(ref)
     now = repository.utcnow()
     with session_scope() as session:
         saved = repository.save_game(session, source.name, game, now)
     with session_scope() as session:
         repository.set_next_check(session, saved.game_id, schedule.next_check(saved.first_seen_at, now))
+    return saved.created
 
 
 def _postpone(source: GameSource, ref: str) -> None:
@@ -66,15 +67,18 @@ def _run(source: GameSource, trigger: str, started: datetime, budget: int) -> in
         )
 
         for ref, is_new in work:
+            error = None
             try:
-                _process(source, ref)
+                outcome = "new" if _process(source, ref) else "revisited"
                 processed += 1
-            except Exception:
+            except Exception as exc:
                 log.exception("failed to process game %s", ref)
+                outcome, error = "failed", f"{type(exc).__name__}: {exc}"
                 failed += 1
                 if not is_new:
                     _postpone(source, ref)  # a new game that failed is simply found again by the next run
             with session_scope() as session:
+                repository.add_run_game(session, run_id, source.name, ref, outcome, error=error)
                 repository.update_progress(session, run_id, found, processed, failed)
 
         status, error = "success", None

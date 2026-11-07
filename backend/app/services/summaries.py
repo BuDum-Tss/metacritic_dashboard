@@ -113,12 +113,15 @@ def _checked(game_id: int, kind: str, total: int, now: datetime) -> None:
 
 def build_summaries(
     source: GameSource, game: Game, game_id: int, plans: dict[str, repo.KindPlan], llm: LLMClient, now: datetime
-) -> int:
+) -> dict[str, str]:
     """Load the reviews of the planned kinds and build the summaries that are worth it.
 
     The queue already checked that there are reviews and that their number changed. What is left
     to check needs the reviews themselves: is the sample big enough and is it a new one. The
-    model is asked only when it is. Returns how many summaries were created.
+    model is asked only when it is.
+
+    Returns what happened to every kind: created, too_few (the sample is too small), same_sample,
+    model_unavailable, bad_answer.
     """
     with session_scope() as session:
         marks = repo.summary_marks(session, game_id)
@@ -126,7 +129,7 @@ def build_summaries(
     bundle = source.fetch_reviews(game, tuple(plans))  # the only requests to the review pages
     limits = {"critics": settings.critics_sample_limit, "users": settings.users_sample_limit}
 
-    created = 0
+    results: dict[str, str] = {}
     for kind, plan in plans.items():
         sample = build_sample(
             bundle.reviews, kind, limits[kind], settings.review_text_limit, seed=f"{game_id}:{kind}"
@@ -134,11 +137,13 @@ def build_summaries(
         if len(sample) < MIN_SAMPLE:
             log.info("%s: too few %s reviews in the sample (%d)", game.slug, kind, len(sample))
             _checked(game_id, kind, plan.total, now)
+            results[kind] = "too_few"
             continue
 
         digest = reviews_hash(sample)
         if kind in marks and marks[kind].reviews_hash == digest:
             _checked(game_id, kind, plan.total, now)  # the same reviews: the summary is still right
+            results[kind] = "same_sample"
             continue
 
         prompt = build_prompt(game.title, kind, sample, plan.total, plan.tones)
@@ -146,16 +151,18 @@ def build_summaries(
             answer = llm.complete(SYSTEM_PROMPT, prompt)
         except LLMError as exc:
             log.warning("%s: no %s summary, the model is not available: %s", game.slug, kind, exc)
-            continue  # not checked: the next run tries again
+            results[kind] = "model_unavailable"  # not checked: the next run tries again
+            continue
         try:
             likes, dislikes = parse_response(answer, len(sample))
         except SummaryError as exc:
             log.warning("%s: no %s summary: %s", game.slug, kind, exc)
             _checked(game_id, kind, plan.total, now)  # the model answered: no more tokens until the reviews change
+            results[kind] = "bad_answer"
             continue
 
         with session_scope() as session:
             repo.save_summary(session, game_id, kind, sample, plan.total, llm.model, digest, likes, dislikes, now)
             repo.record_check(session, game_id, kind, plan.total, now)
-        created += 1
-    return created
+        results[kind] = "created"
+    return results

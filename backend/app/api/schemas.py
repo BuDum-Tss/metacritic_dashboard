@@ -31,6 +31,17 @@ class SyncRunOut(BaseModel):
     _utc = field_validator("started_at", "finished_at")(as_utc)
 
 
+class RunGameOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    game_id: int | None
+    slug: str
+    title: str | None
+    outcome: str
+    details: dict[str, str] | None
+    error: str | None
+
+
 class PipelineStatus(BaseModel):
     running: bool
     enabled: bool  # the analysis is off without a model

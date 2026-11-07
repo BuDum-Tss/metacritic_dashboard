@@ -130,3 +130,40 @@ def test_times_are_returned_in_utc(client):
     client.post("/api/sync/run", params={"pipeline": "crawl"})
     [run] = client.get("/api/sync/runs").json()
     assert run["started_at"].endswith("Z") or run["started_at"].endswith("+00:00")
+
+
+def test_the_games_of_a_crawl_run_are_listed(client):
+    client.post("/api/sync/run", params={"pipeline": "crawl"})
+    [run] = client.get("/api/sync/runs").json()
+
+    games = client.get(f"/api/sync/runs/{run['id']}/games").json()
+    assert [(g["slug"], g["title"], g["outcome"]) for g in games] == [("a", "a", "new"), ("b", "b", "new")]
+    assert all(g["game_id"] is not None and g["error"] is None and g["details"] is None for g in games)
+
+
+def test_the_games_of_an_analysis_run_carry_the_result_per_kind(client, model):
+    client.post("/api/sync/run", params={"pipeline": "crawl"})
+    client.post("/api/sync/run", params={"pipeline": "analysis"})
+    [run] = client.get("/api/sync/runs", params={"pipeline": "analysis"}).json()
+
+    games = client.get(f"/api/sync/runs/{run['id']}/games").json()
+    assert {g["outcome"] for g in games} == {"summarized"}
+    assert games[0]["details"] == {"critics": "created", "users": "created"}
+
+
+def test_an_unknown_run_has_no_games_page(client):
+    assert client.get("/api/sync/runs/999/games").status_code == 404
+
+
+def test_a_run_without_games_gives_an_empty_list(client):
+    client.post("/api/sync/run", params={"pipeline": "analysis"})  # off without a model: no run at all
+    client.post("/api/sync/run", params={"pipeline": "crawl"})
+    run_id = client.get("/api/sync/runs").json()[0]["id"]
+    from sqlalchemy import delete
+
+    from app.db.models import RunGame
+    from app.db.session import session_scope
+
+    with session_scope() as s:  # as a run made before the journal existed
+        s.execute(delete(RunGame))
+    assert client.get(f"/api/sync/runs/{run_id}/games").json() == []

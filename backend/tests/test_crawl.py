@@ -144,6 +144,33 @@ def test_a_new_game_that_cannot_be_loaded_is_not_saved_and_found_again(clock):
     assert game_count() == 3
 
 
+def run_games(run_id: int) -> list[tuple]:
+    with session_scope() as s:
+        return [(g.slug, g.title, g.outcome, g.error) for g in repository.list_run_games(s, run_id)]
+
+
+def test_the_run_lists_its_games_with_their_outcomes(clock):
+    source = FakeSource(["a", "bad"], broken={"bad"})
+    first = run(source, clock)
+    items = run_games(first)
+    assert items[0] == ("a", "A", "new", None)
+    assert items[1][:3] == ("bad", None, "failed") and "cannot parse" in items[1][3]  # no such game in the database
+
+    clock.advance(hours=25)
+    source.broken.clear()
+    second = run(source, clock)  # "bad" is found again as a new game, "a" is due for a revisit
+    assert run_games(second) == [("bad", "Bad", "new", None), ("a", "A", "revisited", None)]
+
+
+def test_a_failed_revisit_is_listed_with_the_title_of_the_stored_game(clock):
+    source = FakeSource(["a"])
+    run(source, clock)
+    clock.advance(hours=25)
+    source.broken.add("a")
+    items = run_games(run(source, clock))
+    assert items[0][:3] == ("a", "A", "failed")
+
+
 # ---------- revisits ----------
 
 

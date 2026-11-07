@@ -24,8 +24,9 @@ class Source:
 
     name = "fake"
 
-    def __init__(self, fail_for: set[str] = frozenset()):
+    def __init__(self, fail_for: set[str] = frozenset(), short_for: set[str] = frozenset()):
         self.fail_for = set(fail_for)
+        self.short_for = set(short_for)  # games with only two reviews with a text
         self.fetched: list[tuple[str, tuple[str, ...]]] = []
         self.requests_for_games = 0
 
@@ -41,6 +42,8 @@ class Source:
             for kind in kinds
             for i, score in enumerate([90, 80, 40] if kind == "critics" else [9, 8, 3])
         ]
+        if game.slug in self.short_for:
+            reviews = reviews[:2] + reviews[3:5]
         return ReviewBundle(reviews=reviews, stats=ReviewStats())
 
 
@@ -243,6 +246,52 @@ def test_without_a_model_the_analysis_does_nothing(monkeypatch):
     source = Source()
     assert analysis.run_analysis(source, "schedule", now=NOW) is None
     assert runs() == [] and source.fetched == []
+
+
+def run_games(run_id: int) -> list[tuple]:
+    with session_scope() as s:
+        return [(g.slug, g.title, g.outcome, g.details, g.error) for g in repository_list(s, run_id)]
+
+
+def repository_list(session, run_id):
+    return repository.list_run_games(session, run_id)
+
+
+def test_every_game_of_the_run_is_listed_with_what_happened_to_it():
+    add_game("good")
+    add_game("bad")
+    add_game("tiny")
+    run_id = analyze(Source(fail_for={"bad"}, short_for={"tiny"}), LLM())
+
+    items = {slug: rest for slug, *rest in run_games(run_id)}
+    created = {"critics": "created", "users": "created"}
+    assert items["good"] == ["Good", "summarized", created, None]
+    assert items["tiny"] == ["Tiny", "checked", {"critics": "too_few", "users": "too_few"}, None]  # nothing to summarize
+    title, outcome, details, error = items["bad"]
+    assert (title, outcome, details) == ("Bad", "failed", None) and "review pages are down" in error
+
+
+def test_a_game_the_model_could_not_be_asked_about_is_listed_as_to_retry():
+    add_game("a")
+    run_id = analyze(Source(), LLM(error=LLMError("down")))
+    [(slug, title, outcome, details, error)] = run_games(run_id)
+    assert (slug, outcome, error) == ("a", "retry", None)
+    assert details == {"critics": "model_unavailable", "users": "model_unavailable"}
+
+
+def test_the_games_appear_in_the_journal_as_the_run_goes():
+    add_game("a")
+    add_game("b")
+    seen: list[int] = []
+
+    class Watching(Source):
+        def fetch_reviews(self, game, kinds=("critics", "users")):
+            with session_scope() as s:  # what the monitoring page would read meanwhile
+                seen.append(len(repository.list_run_games(s, runs()[-1].id)))
+            return super().fetch_reviews(game, kinds)
+
+    analyze(Watching(), LLM())
+    assert seen == [0, 1]  # the first game is already listed while the second is being worked on
 
 
 # ---------- the pipelines are independent ----------

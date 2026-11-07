@@ -4,8 +4,9 @@ from typing import Literal
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from sqlalchemy import select
 
-from app.api.schemas import PipelineStatus, SyncRunOut, SyncStatus
+from app.api.schemas import PipelineStatus, RunGameOut, SyncRunOut, SyncStatus
 from app.config import settings
+from app.db import repository
 from app.db.models import SyncRun
 from app.db.session import session_scope
 from app.services import analysis, crawl
@@ -86,3 +87,12 @@ def list_runs(
         if pipeline:
             query = query.where(SyncRun.pipeline == pipeline)
         return [SyncRunOut.model_validate(row) for row in session.scalars(query)]
+
+
+@router.get("/runs/{run_id}/games", response_model=list[RunGameOut])
+def list_run_games(run_id: int) -> list[RunGameOut]:
+    """The games a run worked on, in the order it did. Runs from before the journal have none."""
+    with session_scope() as session:
+        if session.get(SyncRun, run_id) is None:
+            raise HTTPException(status_code=404, detail="Run not found")
+        return [RunGameOut.model_validate(row) for row in repository.list_run_games(session, run_id)]

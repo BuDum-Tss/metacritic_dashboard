@@ -3,6 +3,7 @@ import type {
   GamePage,
   Pipeline,
   PlatformOption,
+  RunGame,
   SortKey,
   SortOrder,
   SyncRun,
@@ -58,6 +59,7 @@ export const api = {
   syncStatus: () => request<SyncStatus>('/api/sync/status'),
   syncRuns: (pipeline: Pipeline, limit = 20) =>
     request<SyncRun[]>(`/api/sync/runs?pipeline=${pipeline}&limit=${limit}`),
+  runGames: (runId: number) => request<RunGame[]>(`/api/sync/runs/${runId}/games`),
   runSync: (pipeline: Pipeline) =>
     request<{ status: string }>(`/api/sync/run?pipeline=${pipeline}`, { method: 'POST' }),
 }

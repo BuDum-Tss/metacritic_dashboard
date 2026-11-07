@@ -142,3 +142,20 @@ def test_sync_runs_count_only_successful_of_the_day(factory):
         yesterday = repository.start_run(s, "metacritic", "schedule", 0, T0 - timedelta(days=1))
         repository.finish_run(s, yesterday.id, "success", T0 - timedelta(days=1))
         assert repository.count_successful_runs(s, "metacritic", day) == 1
+
+
+def test_run_games_take_the_title_from_the_stored_game(factory):
+    with session_scope(factory) as s:
+        repository.save_game(s, "metacritic", make_game(slug="zelda"), T0)
+        run = repository.start_run(s, "metacritic", "schedule", 0, T0)
+        repository.add_run_game(s, run.id, "metacritic", "zelda", "revisited")
+        repository.add_run_game(s, run.id, "metacritic", "gone", "failed", error="boom")
+        repository.add_run_game(s, run.id, "metacritic", "zelda", "summarized", {"critics": "created"})
+        items = repository.list_run_games(s, run.id)
+        assert [(i.slug, i.title, i.outcome) for i in items] == [
+            ("zelda", "Zelda", "revisited"),
+            ("gone", None, "failed"),  # not in the database: no title and no game
+            ("zelda", "Zelda", "summarized"),
+        ]
+        assert items[0].game_id is not None and items[1].game_id is None
+        assert items[1].error == "boom" and items[2].details == {"critics": "created"}
