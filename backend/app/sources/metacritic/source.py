@@ -6,12 +6,11 @@ from app.sources.metacritic.review_parser import parse_game_page_reviews, parse_
 
 NEW_RELEASES_URL = f"{BASE_URL}/game/"
 SEE_ALL_URL = f"{BASE_URL}/browse/game/all/all/all-time/new/"
-CRITIC_PLATFORMS = 2  # critic pages are taken for this many platforms with the most critic reviews
 
 
-def _top_platforms(platforms: list[PlatformScore], attr: str, count: int) -> list[PlatformScore]:
-    with_reviews = [p for p in platforms if (getattr(p, attr) or 0) > 0]
-    return sorted(with_reviews, key=lambda p: getattr(p, attr), reverse=True)[:count]
+def _with_reviews(platforms: list[PlatformScore], attr: str) -> list[PlatformScore]:
+    """The platforms of a game that have reviews of the kind: each has pages of its own."""
+    return [p for p in platforms if (getattr(p, attr) or 0) > 0]
 
 
 class MetacriticSource:
@@ -60,13 +59,13 @@ class MetacriticSource:
         main_html = self._game_page(game.slug)
         reviews: list[Review] = [r for r in parse_game_page_reviews(main_html) if r.kind in kinds]
         if "critics" in kinds:
-            for platform in _top_platforms(game.platforms, "critic_reviews_count", CRITIC_PLATFORMS):
+            for platform in _with_reviews(game.platforms, "critic_reviews_count"):
                 html = self._client.get(
                     f"{BASE_URL}/game/{game.slug}/critic-reviews/", params={"platform": platform.slug}
                 )
                 reviews += parse_review_page(html, "critics", platform.name)
         if "users" in kinds:
-            for platform in _top_platforms(game.platforms, "user_reviews_count", 1):
+            for platform in _with_reviews(game.platforms, "user_reviews_count"):
                 html = self._client.get(
                     f"{BASE_URL}/game/{game.slug}/user-reviews/", params={"platform": platform.slug}
                 )

@@ -107,7 +107,13 @@ def set_total(slug: str, kind: str, total: int, at: datetime) -> None:
             "fake",
             Game(
                 slug=slug, url="u", title=slug.title(),
-                platforms=[PlatformScore(slug="pc", name="PC")],
+                platforms=[
+                    PlatformScore(
+                        slug="pc", name="PC",
+                        critic_reviews_count=total if kind == "critics" else 10,  # the other kind is as add_game made it
+                        user_reviews_count=total if kind == "users" else 10,
+                    )
+                ],
                 overall=[OverallScore(kind, 80, "x", total, total, 0, 0)],
             ),
             at,
@@ -376,3 +382,42 @@ def test_a_second_analysis_cannot_start_while_one_is_running():
         release.set()
         worker.join()
     assert not is_running("analysis")
+
+
+# ---------- the number of reviews is counted over all platforms ----------
+
+
+def add_multiplatform(slug: str, critics: tuple, users: tuple, at: datetime = NOW) -> int:
+    """A game with a platform per number: the review counts of each platform."""
+    names = ["pc", "ps5", "switch"]
+    game = Game(
+        slug=slug,
+        url=f"https://example.com/{slug}/",
+        title=slug.title(),
+        platforms=[
+            PlatformScore(slug=name, name=name.upper(), critic_reviews_count=c, user_reviews_count=u)
+            for name, c, u in zip(names, critics, users)
+        ],
+        overall=[OverallScore("critics", 80, "x", 5, 5, 0, 0), OverallScore("users", 8, "x", 9, 9, 0, 0)],
+    )
+    with session_scope() as s:
+        return repository.save_game(s, "fake", game, at).game_id
+
+
+def test_critics_are_summed_over_platforms_and_players_ratings_are_not():
+    add_multiplatform("multi", critics=(5, 7, None), users=(9, 9, 9))
+    [item] = queue()
+    assert item.plans["critics"].total == 12  # 5 + 7: every platform has its own critic reviews
+    assert item.plans["users"].total == 9  # the same number on every platform: not 27
+
+
+def test_a_new_review_on_another_platform_brings_the_game_back_to_the_queue():
+    game_id = add_multiplatform("multi", critics=(5, 7, None), users=(9, 9, 9))
+    with session_scope() as s:
+        repo.record_check(s, game_id, "critics", 12, NOW)
+        repo.record_check(s, game_id, "users", 9, NOW)
+    later = NOW + timedelta(hours=INTERVAL + 1)
+    assert queue(later) == []  # nothing changed
+
+    add_multiplatform("multi", critics=(5, 8, None), users=(9, 9, 9), at=later)  # one more critic on PS5
+    assert slugs(queue(later)) == ["multi"]

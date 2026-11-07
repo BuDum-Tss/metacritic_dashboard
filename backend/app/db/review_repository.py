@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import AnalysisState, Game, GameOverallScore, Review, ReviewSummary, SummaryPoint
+from app.db.models import AnalysisState, Game, GameOverallScore, GamePlatform, Review, ReviewSummary, SummaryPoint
 from app.sources import base
 
 KINDS = ("critics", "users")
@@ -31,7 +31,7 @@ MIN_REVIEWS = 3  # fewer reviews of a kind give no summary
 class KindPlan:
     """What the analysis knows about one kind of reviews of a game before it asks the site."""
 
-    total: int  # the number of reviews as the crawl last saw it
+    total: int  # the number of reviews over all platforms as the crawl last saw it
     tones: dict[str, int]  # positive / mixed / negative
 
 
@@ -48,7 +48,8 @@ def analysis_queue(
 ) -> list[QueueItem]:
     """The games whose reviews are worth a look, chosen from the database alone.
 
-    A kind of reviews of a game is queued when there are at least MIN_REVIEWS of them and it was
+    A kind of reviews of a game (counted over all its platforms) is queued when there are at least
+    MIN_REVIEWS of them and it was
     never checked, or the number changed since the last check and the check is older than
     `interval_hours`. It is also queued when its summary was made by a prompt older than
     `prompt_version`. Never checked games come first (the newest first), then the outdated
@@ -56,7 +57,19 @@ def analysis_queue(
     """
     threshold = now - timedelta(hours=interval_hours)
     items: dict[int, QueueItem] = {}
+    # the number of reviews of a game is counted over all its platforms: critics have a list of
+    # their own on each one, while the players' ratings are the same number on every platform
+    totals = (
+        select(
+            GamePlatform.game_id,
+            func.sum(GamePlatform.critic_reviews_count).label("critics"),
+            func.max(GamePlatform.user_reviews_count).label("users"),
+        )
+        .group_by(GamePlatform.game_id)
+        .subquery()
+    )
     for kind in KINDS:
+        total_column = totals.c.critics if kind == "critics" else totals.c.users
         latest = (
             select(func.max(GameOverallScore.id))
             .where(GameOverallScore.source == kind)
@@ -71,7 +84,7 @@ def analysis_queue(
             select(
                 Game.id,
                 Game.slug,
-                GameOverallScore.reviews_count,
+                total_column,
                 GameOverallScore.positive,
                 GameOverallScore.mixed,
                 GameOverallScore.negative,
@@ -80,6 +93,7 @@ def analysis_queue(
                 ReviewSummary.prompt_version,
             )
             .join(GameOverallScore, GameOverallScore.game_id == Game.id)
+            .join(totals, totals.c.game_id == Game.id)
             .outerjoin(AnalysisState, and_(AnalysisState.game_id == Game.id, AnalysisState.kind == kind))
             .outerjoin(
                 ReviewSummary,
@@ -92,7 +106,7 @@ def analysis_queue(
             .where(
                 Game.source == source,
                 GameOverallScore.id.in_(latest),
-                GameOverallScore.reviews_count >= MIN_REVIEWS,
+                total_column >= MIN_REVIEWS,
             )
         )
         for row in session.execute(query):
@@ -111,7 +125,7 @@ def analysis_queue(
                 if count is not None
             }
             item = items.setdefault(game_id, QueueItem(game_id, slug, {}, priority))
-            item.plans[kind] = KindPlan(total, tones)
+            item.plans[kind] = KindPlan(int(total), tones)
             item.priority = min(item.priority, priority)
     return sorted(items.values(), key=lambda item: item.priority)[:limit]
 

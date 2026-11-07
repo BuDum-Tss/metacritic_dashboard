@@ -7,10 +7,24 @@ import { ScoreHeader } from '@/components/Overall'
 import { ScoreBadge } from '@/components/ScoreBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { formatDateTime, reviewTone, type ReviewTone } from '@/lib/format'
+import { formatDateTime, plural, reviewTone, type ReviewTone } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 const TITLES: Record<ReviewKind, string> = { critics: 'Отзывы критиков', users: 'Отзывы игроков' }
+
+// what the sample is and why it is smaller than the total; the total is counted over all platforms
+function sampleNote(kind: ReviewKind, summary: ReviewSummary): string {
+  const n = summary.sample_size
+  const total = summary.total_reviews
+  if (kind === 'critics') {
+    const sample = `В выборке ${n} ${plural(n, ['отзыв', 'отзыва', 'отзывов'])} критиков`
+    const all = total ? ` из ${total} на всех платформах` : ''
+    return `${sample}${all}. С сайта доступны только первые страницы отзывов каждой платформы.`
+  }
+  const sample = `В выборке ${n} ${plural(n, ['отзыв', 'отзыва', 'отзывов'])} с текстом`
+  const all = total ? ` из ${total} ${plural(total, ['оценки', 'оценок', 'оценок'])} игроков` : ''
+  return `${sample}${all}. У остальных оценок нет текста или он скрыт как спойлер.`
+}
 
 type PointKind = 'like' | 'dislike'
 
@@ -160,10 +174,8 @@ function ReviewPane({
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-base font-semibold">Резюме ИИ</h3>
                 <InfoTip>
-                  Резюме ИИ по {summary.sample_size}
-                  {summary.total_reviews ? ` из ${summary.total_reviews}` : ''} отзывов · {summary.model} ·{' '}
-                  {formatDateTime(summary.generated_at)}. Нажмите на пункт, чтобы оставить справа только отзывы, на
-                  которых он основан.
+                  Резюме ИИ. {sampleNote(kind, summary)} Модель {summary.model}, {formatDateTime(summary.generated_at)}.
+                  Нажмите на пункт, чтобы оставить справа только отзывы, на которых он основан.
                   {kind === 'critics' &&
                     ' Доступные отзывы критиков смещены к высоким оценкам: отсутствие критики здесь не значит, что недостатков нет.'}
                 </InfoTip>
@@ -191,10 +203,10 @@ function ReviewPane({
                   </Button>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  Выборка, на которой построено резюме: {summary.sample_size}
-                  {summary.total_reviews ? ` из ${summary.total_reviews}` : ''} отзывов.
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold">Отзывы выборки</h3>
+                  <InfoTip>{sampleNote(kind, summary)}</InfoTip>
+                </div>
               )}
 
               <div role="group" aria-label="Тональность" className="flex flex-wrap gap-2">

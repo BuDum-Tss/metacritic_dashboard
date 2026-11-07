@@ -81,9 +81,9 @@ def test_fetch_reviews_collects_every_html_source():
     urls = [(url.split("/game/")[1], params) for url, params in client.calls]
     critic_calls = [p for u, p in urls if "critic-reviews" in u]
     user_calls = [p for u, p in urls if "user-reviews" in u]
-    assert sorted(p["platform"] for p in critic_calls) == ["pc", "playstation-5"]  # two platforms with critic reviews
-    assert len(user_calls) == 1  # one platform for user reviews
-    assert len(urls) == 3  # the game page itself is not requested again
+    assert sorted(p["platform"] for p in critic_calls) == ["pc", "playstation-5"]  # every platform with critic reviews
+    assert sorted(p["platform"] for p in user_calls) == ["pc", "playstation-5"]  # ...and with player ratings
+    assert len(urls) == 4  # the game page itself is not requested again
 
     critics = [r for r in bundle.reviews if r.kind == "critics"]
     users = [r for r in bundle.reviews if r.kind == "users"]
@@ -125,5 +125,28 @@ def test_fetch_reviews_loads_only_the_pages_of_the_requested_kinds():
     bundle = source.fetch_reviews(game, ("users",))
 
     urls = [url for url, _ in client.calls]
-    assert len(urls) == 1 and "user-reviews" in urls[0]  # no critic pages
+    assert len(urls) == 2 and all("user-reviews" in url for url in urls)  # a page per platform, no critic pages
     assert {r.kind for r in bundle.reviews} == {"users"}
+
+
+def test_every_platform_with_reviews_is_fetched_and_those_without_are_skipped():
+    from app.sources.base import Game, PlatformScore
+
+    client = FakeClient()
+    source = MetacriticSource(client)
+    game = Game(
+        slug="phantom-blade-zero",
+        url="u",
+        title="X",
+        platforms=[
+            PlatformScore(slug="a", name="A", critic_reviews_count=5, user_reviews_count=5),
+            PlatformScore(slug="b", name="B", critic_reviews_count=3, user_reviews_count=None),
+            PlatformScore(slug="c", name="C", critic_reviews_count=None, user_reviews_count=None),
+            PlatformScore(slug="d", name="D", critic_reviews_count=0, user_reviews_count=2),
+        ],
+    )
+    source.fetch_reviews(game)
+
+    pages = [(url.split("/game/phantom-blade-zero/")[1], params["platform"]) for url, params in client.calls if params]
+    assert sorted(p for u, p in pages if u.startswith("critic-reviews")) == ["a", "b"]
+    assert sorted(p for u, p in pages if u.startswith("user-reviews")) == ["a", "d"]

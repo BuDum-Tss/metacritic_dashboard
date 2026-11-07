@@ -18,12 +18,13 @@ class FakeSource:
         return ["a", "b"]
 
     def fetch_game(self, ref: str) -> SourceGame:
-        from app.sources.base import OverallScore
+        from app.sources.base import OverallScore, PlatformScore
 
         return SourceGame(
             slug=ref,
             url=f"https://example.com/{ref}/",
             title=ref,
+            platforms=[PlatformScore(slug="pc", name="PC", critic_reviews_count=5, user_reviews_count=5)],
             overall=[OverallScore("critics", 80, "x", 5, 5, 0, 0), OverallScore("users", 8, "x", 5, 5, 0, 0)],
         )
 

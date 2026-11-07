@@ -84,7 +84,7 @@ def build_prompt(title: str, kind: str, sample: list[Review], total: int | None,
     ]
     if tones:
         split = ", ".join(f"{tones[t]} {t}" for t in ("positive", "mixed", "negative") if t in tones)
-        lines.append(f"Sentiment of all reviews of this game on the site: {split}.")
+        lines.append(f"Sentiment of the reviews on the main page of this game (for one platform): {split}.")
     if kind == "critics":
         lines.append(CRITICS_NOTE)
     lines.append("")
