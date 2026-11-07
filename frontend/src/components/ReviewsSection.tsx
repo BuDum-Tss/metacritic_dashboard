@@ -154,7 +154,7 @@ function ReviewPane({
       )}
 
       {summary ? (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className="grid items-stretch gap-4 lg:min-h-[28rem] lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <Card>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between gap-2">
@@ -173,8 +173,9 @@ function ReviewPane({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="space-y-3">
+          {/* on wide screens the card takes the height of the summary and the list scrolls inside it */}
+          <Card className="lg:h-0 lg:min-h-full">
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
               {point && pointKind ? (
                 <div
                   className={cn(
@@ -216,7 +217,7 @@ function ReviewPane({
               {shown.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Нет отзывов, подходящих под выбранный фильтр</p>
               ) : (
-                <ul className="max-h-[36rem] space-y-2 overflow-y-auto pr-1">
+                <ul className="max-h-[36rem] min-h-0 space-y-2 overflow-y-auto pr-1 lg:max-h-none lg:flex-1">
                   {shown.map((review) => (
                     <ReviewItem key={review.id} review={review} kind={kind} accent={pointKind} />
                   ))}
@@ -262,7 +263,7 @@ export function ReviewsSection({
               )}
             >
               {TITLES[kind]}
-              {count !== null && <span className="ml-1 text-sm">({count})</span>}
+              {count !== null && <span className="ml-1.5 text-sm">{`(${count})`}</span>}
             </button>
           )
         })}
