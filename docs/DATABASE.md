@@ -146,7 +146,7 @@ erDiagram
 
 ### `review_summaries`
 
-Версии резюме по отзывам. Только добавление строк. Новая версия создаётся при смене `reviews_hash`, но не чаще раза в сутки.
+Версии резюме по отзывам. Только добавление строк. Новая версия создаётся при смене `reviews_hash` (не чаще раза в сутки) или когда прежняя построена более ранней версией запроса.
 
 | Поле | Тип | Описание |
 |---|---|---|
@@ -157,6 +157,8 @@ erDiagram
 | `sample_size` | INTEGER NOT NULL | сколько отзывов проанализировано |
 | `total_reviews` | INTEGER | сколько отзывов этого типа всего у игры |
 | `model` | TEXT NOT NULL | какая модель сделала резюме |
+| `prompt_version` | INTEGER NOT NULL | версия запроса, которым сделано резюме (у резюме до введения версий 1) |
+| `analysis` | JSON | разбор модели по каждому отзыву: список `{"review_id": 17, "verdict": "criticism", "note": "..."}`; `verdict`: `praise`, `criticism`, `mixed`, `irrelevant` |
 | `generated_at` | TEXT NOT NULL | |
 
 Индекс: `(game_id, source, generated_at)`. Актуальное резюме — самая свежая строка по `(game_id, source)`.

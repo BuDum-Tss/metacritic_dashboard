@@ -51,7 +51,7 @@ def _run(source: GameSource, trigger: str, started: datetime, budget: int, llm: 
         # the queue comes from the database alone: no request to the site
         with session_scope() as session:
             queue = review_repository.analysis_queue(
-                session, source.name, started, budget, settings.summary_min_interval_hours
+                session, source.name, started, budget, settings.summary_min_interval_hours, summaries.PROMPT_VERSION
             )
         found = len(queue)
         log.info("analysis run %d: %d games in the queue", run_id, found)

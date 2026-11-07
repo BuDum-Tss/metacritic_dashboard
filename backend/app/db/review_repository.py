@@ -15,6 +15,15 @@ KINDS = ("critics", "users")
 Point = tuple[str, list[int]]
 
 
+@dataclass
+class Note:
+    """The model's verdict on one review of the sample: praise, criticism, mixed or irrelevant."""
+
+    position: int  # 1-based, as in a Point
+    verdict: str
+    note: str
+
+
 MIN_REVIEWS = 3  # fewer reviews of a kind give no summary
 
 
@@ -34,12 +43,16 @@ class QueueItem:
     priority: tuple
 
 
-def analysis_queue(session: Session, source: str, now: datetime, limit: int, interval_hours: int) -> list[QueueItem]:
+def analysis_queue(
+    session: Session, source: str, now: datetime, limit: int, interval_hours: int, prompt_version: int = 1
+) -> list[QueueItem]:
     """The games whose reviews are worth a look, chosen from the database alone.
 
     A kind of reviews of a game is queued when there are at least MIN_REVIEWS of them and it was
     never checked, or the number changed since the last check and the check is older than
-    `interval_hours`. Never checked games come first (the newest first), then the longest unchecked.
+    `interval_hours`. It is also queued when its summary was made by a prompt older than
+    `prompt_version`. Never checked games come first (the newest first), then the outdated
+    summaries, then the longest unchecked.
     """
     threshold = now - timedelta(hours=interval_hours)
     items: dict[int, QueueItem] = {}
@@ -48,6 +61,11 @@ def analysis_queue(session: Session, source: str, now: datetime, limit: int, int
             select(func.max(GameOverallScore.id))
             .where(GameOverallScore.source == kind)
             .group_by(GameOverallScore.game_id)
+        )
+        latest_summary = (
+            select(func.max(ReviewSummary.id))
+            .where(ReviewSummary.source == kind)
+            .group_by(ReviewSummary.game_id)
         )
         query = (
             select(
@@ -59,20 +77,32 @@ def analysis_queue(session: Session, source: str, now: datetime, limit: int, int
                 GameOverallScore.negative,
                 AnalysisState.checked_at,
                 AnalysisState.total_reviews,
+                ReviewSummary.prompt_version,
             )
             .join(GameOverallScore, GameOverallScore.game_id == Game.id)
             .outerjoin(AnalysisState, and_(AnalysisState.game_id == Game.id, AnalysisState.kind == kind))
+            .outerjoin(
+                ReviewSummary,
+                and_(
+                    ReviewSummary.game_id == Game.id,
+                    ReviewSummary.source == kind,
+                    ReviewSummary.id.in_(latest_summary),
+                ),
+            )
             .where(
                 Game.source == source,
                 GameOverallScore.id.in_(latest),
                 GameOverallScore.reviews_count >= MIN_REVIEWS,
             )
         )
-        for game_id, slug, total, positive, mixed, negative, checked_at, checked_total in session.execute(query):
+        for row in session.execute(query):
+            game_id, slug, total, positive, mixed, negative, checked_at, checked_total, summary_version = row
             if checked_at is None:
                 priority = (0, -game_id)
-            elif checked_total != total and checked_at <= threshold:
+            elif summary_version is not None and summary_version < prompt_version:
                 priority = (1, checked_at.timestamp())
+            elif checked_total != total and checked_at <= threshold:
+                priority = (2, checked_at.timestamp())
             else:
                 continue
             tones = {
@@ -103,13 +133,19 @@ class SummaryMark:
     generated_at: datetime
     total_reviews: int | None
     reviews_hash: str
+    prompt_version: int
 
 
 def summary_marks(session: Session, game_id: int) -> dict[str, SummaryMark]:
     marks: dict[str, SummaryMark] = {}
     for kind in KINDS:
         row = session.execute(
-            select(ReviewSummary.generated_at, ReviewSummary.total_reviews, ReviewSummary.reviews_hash)
+            select(
+                ReviewSummary.generated_at,
+                ReviewSummary.total_reviews,
+                ReviewSummary.reviews_hash,
+                ReviewSummary.prompt_version,
+            )
             .where(ReviewSummary.game_id == game_id, ReviewSummary.source == kind)
             .order_by(ReviewSummary.generated_at.desc(), ReviewSummary.id.desc())
             .limit(1)
@@ -149,6 +185,8 @@ def save_summary(
     likes: list[Point],
     dislikes: list[Point],
     now: datetime,
+    prompt_version: int = 1,
+    notes: list[Note] | None = None,
 ) -> ReviewSummary:
     """Store the sample reviews (reused when already known), the summary and its points."""
     rows: list[Review] = []
@@ -182,6 +220,12 @@ def save_summary(
         sample_size=len(sample),
         total_reviews=total,
         model=model,
+        prompt_version=prompt_version,
+        analysis=[
+            {"review_id": rows[n.position - 1].id, "verdict": n.verdict, "note": n.note} for n in notes
+        ]
+        if notes
+        else None,
         generated_at=now,
     )
     for point_kind, points in (("like", likes), ("dislike", dislikes)):

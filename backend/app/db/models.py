@@ -161,6 +161,8 @@ class ReviewSummary(Base):
     sample_size: Mapped[int] = mapped_column(Integer)
     total_reviews: Mapped[int | None] = mapped_column(Integer)
     model: Mapped[str] = mapped_column(String)
+    prompt_version: Mapped[int] = mapped_column(Integer)  # the prompt that made it; older ones are redone
+    analysis: Mapped[list | None] = mapped_column(JSON)  # the model's verdict on every review
     generated_at: Mapped[datetime] = mapped_column(DateTime)
 
     points: Mapped[list["SummaryPoint"]] = relationship(

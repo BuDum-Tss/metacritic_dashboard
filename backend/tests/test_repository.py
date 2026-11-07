@@ -6,10 +6,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.db import repository
+from app.db import review_repository as repo
 from app.db.models import Game, GamePlatformHistory, Genre
 from app.db.session import init_db, make_engine, session_scope
 from app.sources.base import Game as SourceGame
-from app.sources.base import PlatformScore
+from app.sources.base import PlatformScore, Review
 
 T0 = datetime(2026, 11, 6, 10, 0)
 
@@ -159,3 +160,33 @@ def test_run_games_take_the_title_from_the_stored_game(factory):
         ]
         assert items[0].game_id is not None and items[1].game_id is None
         assert items[1].error == "boom" and items[2].details == {"critics": "created"}
+
+
+def test_a_summary_keeps_its_prompt_version_and_the_analysis_with_review_ids(factory):
+    with session_scope(factory) as s:
+        game_id = repository.save_game(s, "metacritic", make_game(), T0).game_id
+        sample = [
+            Review(kind="users", text=f"text {i}", score=9, author=f"u{i}", date="d") for i in range(3)
+        ]
+        repo.save_summary(
+            s, game_id, "users", sample, 10, "m", "h", likes=[("a", [1])], dislikes=[], now=T0,
+            prompt_version=3,
+            notes=[repo.Note(1, "praise", "fun"), repo.Note(3, "irrelevant", "")],
+        )
+        summary = repo.latest_summary(s, game_id, "users")
+        assert summary.prompt_version == 3
+        by_text = {r.text: r.id for r in summary.reviews}
+        assert summary.analysis == [
+            {"review_id": by_text["text 0"], "verdict": "praise", "note": "fun"},
+            {"review_id": by_text["text 2"], "verdict": "irrelevant", "note": ""},
+        ]
+        assert repo.summary_marks(s, game_id)["users"].prompt_version == 3
+
+
+def test_a_summary_without_a_prompt_version_is_version_one(factory):
+    with session_scope(factory) as s:
+        game_id = repository.save_game(s, "metacritic", make_game(), T0).game_id
+        sample = [Review(kind="users", text=f"t{i}", score=9, author="u", date="d") for i in range(3)]
+        repo.save_summary(s, game_id, "users", sample, 3, "m", "h", likes=[("a", [1])], dislikes=[], now=T0)
+        assert repo.summary_marks(s, game_id)["users"].prompt_version == 1
+        assert repo.latest_summary(s, game_id, "users").analysis is None

@@ -47,13 +47,19 @@ class FakeSource:
 class FakeLLM:
     model = "fake-model"
 
-    def __init__(self, answer=None, error: Exception | None = None):
+    def __init__(self, answer=None, error: Exception | None = None, answers: list | None = None):
         self.answer = answer
         self.error = error
+        self.answers = list(answers or [])  # one per request; an exception in the list is raised
         self.prompts: list[str] = []
 
     def complete(self, system: str, user: str) -> str:
         self.prompts.append(user)
+        if self.answers:
+            next_answer = self.answers.pop(0)
+            if isinstance(next_answer, Exception):
+                raise next_answer
+            return next_answer
         if self.error:
             raise self.error
         if callable(self.answer):
@@ -153,14 +159,15 @@ def test_invented_review_ids_and_unsupported_points_are_dropped():
             "dislikes": [{"text": "Ok", "reviews": ["r2", 3]}],
         }
     )
-    likes, dislikes = parse_response(answer, count=3)
-    assert likes == [("Real", [1])]
-    assert dislikes == [("Ok", [2, 3])]
+    parsed = parse_response(answer, count=3)
+    assert parsed.likes == [("Real", [1])]
+    assert parsed.dislikes == [("Ok", [2, 3])]
 
 
 def test_answer_in_a_code_block_is_accepted():
     answer = '```json\n{"likes": [{"text": "A", "reviews": ["R1"]}], "dislikes": []}\n```'
-    assert parse_response(answer, 2) == ([("A", [1])], [])
+    parsed = parse_response(answer, 2)
+    assert (parsed.likes, parsed.dislikes) == ([("A", [1])], [])
 
 
 @pytest.mark.parametrize("answer", ["no json here", "{broken", '{"likes": [], "dislikes": []}', "[1, 2]"])
@@ -227,3 +234,162 @@ def test_only_the_planned_kinds_are_requested(game_id):
     build(source, game_id, FakeLLM(), {"critics": CRITICS})
     assert source.requested == [("critics",)]  # the player pages are not requested
     assert set(checks()) == {"critics"}
+
+
+# ---------- the analysis of every review before the points ----------
+
+
+def reply(likes=(), dislikes=(), notes=()) -> str:
+    """An answer of the model: the analysis of the reviews, then the points."""
+    return json.dumps(
+        {
+            "reviews": [{"id": i, "verdict": v, "note": n} for i, v, n in notes],
+            "likes": [{"text": t, "reviews": r} for t, r in likes],
+            "dislikes": [{"text": t, "reviews": r} for t, r in dislikes],
+        }
+    )
+
+
+def points_of(game_id: int, kind: str, point_kind: str) -> list[tuple[str, int]]:
+    with session_scope() as s:
+        summary = repo.latest_summary(s, game_id, kind)
+        return [(p.text, len(p.reviews)) for p in summary.points if p.kind == point_kind]
+
+
+def test_the_instructions_ask_for_a_judgement_by_text_not_by_score():
+    assert "not by its score" in summaries.SYSTEM_PROMPT
+    assert "go through ALL the reviews" in summaries.SYSTEM_PROMPT
+    assert "irrelevant" in summaries.SYSTEM_PROMPT
+
+
+def test_the_analysis_is_parsed_and_checked():
+    raw = reply(
+        notes=[
+            ("R1", "praise", "great"),
+            ("R2", "PRAISE", "case is ignored"),
+            ("R3", "criticism", "too short"),
+            ("R3", "praise", "a second verdict on R3 is ignored"),
+            ("R9", "praise", "there is no such review"),
+            ("R4", "meh", "an unknown verdict"),
+            ("R2", "irrelevant", ""),
+        ],
+        likes=[("Great", ["R1"])],
+    )
+    parsed = parse_response(raw, count=4)
+    assert [(n.position, n.verdict, n.note) for n in parsed.notes] == [
+        (1, "praise", "great"),
+        (2, "praise", "case is ignored"),
+        (3, "criticism", "too short"),
+    ]
+
+
+def test_an_answer_with_only_an_analysis_is_accepted_but_one_with_nothing_but_noise_is_not():
+    parsed = parse_response(reply(notes=[("R1", "criticism", "too short")]), 3)
+    assert (parsed.likes, parsed.dislikes, len(parsed.notes)) == ([], [], 1)
+    with pytest.raises(SummaryError):
+        parse_response(reply(notes=[("R1", "irrelevant", ""), ("R2", "irrelevant", "")]), 3)
+
+
+def test_empty_dislikes_with_complaints_in_the_analysis_are_asked_again(game_id):
+    source = FakeSource(make_reviews("users", [10, 9, 0]))
+    first = reply(
+        notes=[("R1", "praise", "fun"), ("R2", "praise", "fun"), ("R3", "criticism", "no new content")],
+        likes=[("Fun", ["R1", "R2"])],
+    )
+    second = reply(likes=[("Fun", ["R1", "R2"])], dislikes=[("The remake adds nothing new", ["R3"])])
+    llm = FakeLLM(answers=[first, second])
+
+    assert build(source, game_id, llm, {"users": USERS}) == {"users": "created"}
+
+    assert len(llm.prompts) == 2
+    assert "R3: no new content" in llm.prompts[1]  # the complaints of its own analysis
+    assert '"dislikes" list of your answer is empty' in llm.prompts[1]
+    assert points_of(game_id, "users", "dislike") == [("The remake adds nothing new", 1)]
+
+
+def test_a_second_empty_answer_falls_back_to_the_complaints_of_the_analysis(game_id):
+    source = FakeSource(make_reviews("users", [10, 4, 7]))
+    notes = [("R1", "praise", "fun"), ("R2", "criticism", "too simple"), ("R3", "mixed", "hand-holding")]
+    still_empty = reply(notes=notes, likes=[("Fun", ["R1"])])
+    llm = FakeLLM(answers=[still_empty, still_empty])
+
+    assert build(source, game_id, llm, {"users": USERS}) == {"users": "created"}
+
+    assert len(llm.prompts) == 2  # asked once more, not endlessly
+    assert points_of(game_id, "users", "dislike") == [("too simple", 1), ("hand-holding", 1)]
+
+
+def test_the_points_come_from_the_analysis_when_the_repeated_request_fails(game_id):
+    source = FakeSource(make_reviews("users", [10, 4, 7]))
+    first = reply(
+        notes=[("R1", "praise", "fun"), ("R2", "criticism", "too simple")], likes=[("Fun", ["R1"])]
+    )
+    llm = FakeLLM(answers=[first, LLMError("down")])
+
+    assert build(source, game_id, llm, {"users": USERS}) == {"users": "created"}
+    assert points_of(game_id, "users", "dislike") == [("too simple", 1)]
+
+
+def test_missing_likes_are_repaired_too(game_id):
+    source = FakeSource(make_reviews("users", [10, 4, 7]))
+    first = reply(
+        notes=[("R1", "praise", "fun"), ("R2", "criticism", "dull")], dislikes=[("Dull", ["R2"])]
+    )
+    second = reply(likes=[("Fun", ["R1"])], dislikes=[("Dull", ["R2"])])
+    llm = FakeLLM(answers=[first, second])
+
+    build(source, game_id, llm, {"users": USERS})
+
+    assert '"likes" list of your answer is empty' in llm.prompts[1]
+    assert points_of(game_id, "users", "like") == [("Fun", 1)]
+
+
+def test_no_repeated_request_when_the_analysis_has_nothing_for_the_empty_list(game_id):
+    source = FakeSource(make_reviews("users", [10, 9, 0]))
+    only_praise = reply(
+        notes=[("R1", "praise", "fun"), ("R2", "praise", "fun"), ("R3", "irrelevant", "")],
+        likes=[("Fun", ["R1", "R2"])],
+    )
+    llm = FakeLLM(answers=[only_praise])
+
+    assert build(source, game_id, llm, {"users": USERS}) == {"users": "created"}
+
+    assert len(llm.prompts) == 1  # the spam review is not a complaint: no second request
+    assert points_of(game_id, "users", "dislike") == []
+
+
+def test_the_analysis_and_the_prompt_version_are_stored(game_id):
+    source = FakeSource(make_reviews("users", [10, 4, 0]))
+    llm = FakeLLM(
+        answers=[
+            reply(
+                notes=[("R1", "praise", "fun"), ("R2", "criticism", "dull"), ("R3", "irrelevant", "")],
+                likes=[("Fun", ["R1"])],
+                dislikes=[("Dull", ["R2"])],
+            )
+        ]
+    )
+    build(source, game_id, llm, {"users": USERS})
+
+    with session_scope() as s:
+        summary = s.scalar(select(repo.ReviewSummary))
+        assert summary.prompt_version == summaries.PROMPT_VERSION
+        assert [(a["verdict"], a["note"]) for a in summary.analysis] == [
+            ("praise", "fun"),
+            ("criticism", "dull"),
+            ("irrelevant", ""),
+        ]
+        assert {a["review_id"] for a in summary.analysis} == {r.id for r in summary.reviews}
+
+
+def test_a_summary_of_an_older_prompt_is_built_again_even_for_the_same_sample(game_id, monkeypatch):
+    source = FakeSource(make_reviews("users", [10, 9, 4]))
+    monkeypatch.setattr(summaries, "PROMPT_VERSION", 1)
+    build(source, game_id, FakeLLM(), {"users": USERS})
+
+    monkeypatch.setattr(summaries, "PROMPT_VERSION", 2)
+    llm = FakeLLM()
+    assert build(source, game_id, llm, {"users": USERS}, NOW + timedelta(hours=1)) == {"users": "created"}
+    assert len(llm.prompts) == 1 and summary_count() == 2
+
+    assert build(source, game_id, FakeLLM(), {"users": USERS}, NOW + timedelta(hours=2)) == {"users": "same_sample"}

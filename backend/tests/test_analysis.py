@@ -11,7 +11,7 @@ from app.db import session as db_session
 from app.db.models import AnalysisState, ReviewSummary, SyncRun
 from app.db.session import init_db, make_engine, session_scope
 from app.llm import LLMError
-from app.services import analysis, crawl
+from app.services import analysis, crawl, summaries
 from app.services.pipelines import PipelineRunning, is_running
 from app.sources.base import Game, OverallScore, PlatformScore, Review, ReviewBundle, ReviewStats
 
@@ -173,6 +173,24 @@ def test_the_tone_split_comes_from_the_overall_score():
     assert item.plans["critics"].tones == {"positive": 3, "mixed": 0, "negative": 0}
 
 
+def test_a_summary_of_an_older_prompt_is_queued_again_after_the_never_analyzed():
+    add_game("outdated", critics=10, users=None)
+    add_game("never", critics=10, users=None)
+    sample = [Review(kind="critics", text=f"text {i}", score=90, author=f"a{i}", date="d") for i in range(3)]
+    with session_scope() as s:
+        repo.save_summary(
+            s, 1, "critics", sample, 10, "m", "h", likes=[("a", [1])], dislikes=[], now=NOW, prompt_version=1
+        )
+        repo.record_check(s, 1, "critics", 10, NOW)
+    later = NOW + timedelta(hours=1)  # the reviews did not change: only the prompt is outdated
+
+    with session_scope() as s:
+        items = repo.analysis_queue(s, "fake", later, 10, INTERVAL, prompt_version=2)
+        assert slugs(items) == ["never", "outdated"]
+        assert list(items[1].plans) == ["critics"]
+        assert slugs(repo.analysis_queue(s, "fake", later, 10, INTERVAL, prompt_version=1)) == ["never"]
+
+
 # ---------- the run ----------
 
 
@@ -292,6 +310,25 @@ def test_the_games_appear_in_the_journal_as_the_run_goes():
 
     analyze(Watching(), LLM())
     assert seen == [0, 1]  # the first game is already listed while the second is being worked on
+
+
+def test_a_run_rebuilds_the_summaries_of_an_older_prompt_and_then_leaves_them_alone(monkeypatch):
+    add_game("a")
+    monkeypatch.setattr(summaries, "PROMPT_VERSION", 1)
+    analyze(Source(), LLM())
+    assert summary_count() == 2
+
+    monkeypatch.setattr(summaries, "PROMPT_VERSION", 2)
+    llm = LLM()
+    analyze(Source(), llm, now=NOW + timedelta(hours=1))
+    assert llm.calls == 2 and summary_count() == 4  # both kinds, as new versions
+    with session_scope() as s:
+        for kind in ("critics", "users"):
+            assert repo.latest_summary(s, 1, kind).prompt_version == 2
+
+    nothing = LLM()
+    analyze(Source(), nothing, now=NOW + timedelta(hours=2))
+    assert nothing.calls == 0  # up to date now
 
 
 # ---------- the pipelines are independent ----------

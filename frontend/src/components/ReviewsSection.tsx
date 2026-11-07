@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils'
 const TITLES: Record<ReviewKind, string> = { critics: 'Отзывы критиков', users: 'Отзывы игроков' }
 
 const TABS = [
-  { key: 'ai', label: 'Резюме ИИ' },
   { key: 'all', label: 'Все' },
   { key: 'positive', label: 'Положительные' },
   { key: 'mixed', label: 'Смешанные' },
@@ -49,16 +48,17 @@ function ReviewList({ reviews, kind }: { reviews: Review[]; kind: ReviewKind }) 
   )
 }
 
-function PointList({
+// one of the two columns of the summary: what is liked or what is not; a click filters the reviews
+function PointColumn({
   heading,
   points,
   activeId,
-  onSelect,
+  onToggle,
 }: {
   heading: string
   points: SummaryPoint[]
   activeId: number | null
-  onSelect: (id: number) => void
+  onToggle: (id: number) => void
 }) {
   return (
     <div className="space-y-2">
@@ -71,7 +71,7 @@ function PointList({
             key={point.id}
             type="button"
             aria-pressed={point.id === activeId}
-            onClick={() => onSelect(point.id)}
+            onClick={() => onToggle(point.id)}
             className={cn(
               'w-full rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-muted',
               point.id === activeId && 'border-primary bg-muted',
@@ -86,38 +86,6 @@ function PointList({
   )
 }
 
-function SummaryTab({ kind, summary }: { kind: ReviewKind; summary: ReviewSummary }) {
-  const [pointId, setPointId] = useState<number | null>(null)
-  const point = [...summary.likes, ...summary.dislikes].find((p) => p.id === pointId)
-  const reviews = point ? summary.reviews.filter((r) => point.review_ids.includes(r.id)) : []
-
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Резюме ИИ по {summary.sample_size}
-        {summary.total_reviews ? ` из ${summary.total_reviews}` : ''} отзывов · {summary.model} ·{' '}
-        {formatDateTime(summary.generated_at)}
-        {kind === 'critics' &&
-          '. Доступные отзывы критиков смещены к высоким оценкам: отсутствие критики здесь не значит, что недостатков нет.'}
-      </p>
-      <PointList heading="Что нравится" points={summary.likes} activeId={pointId} onSelect={setPointId} />
-      <PointList heading="Что не нравится" points={summary.dislikes} activeId={pointId} onSelect={setPointId} />
-
-      {point && (
-        <div className="space-y-2 rounded-lg bg-muted/40 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-sm font-medium">Отзывы к пункту «{point.text}»</p>
-            <Button variant="outline" size="sm" onClick={() => setPointId(null)}>
-              Закрыть
-            </Button>
-          </div>
-          <ReviewList reviews={reviews} kind={kind} />
-        </div>
-      )}
-    </div>
-  )
-}
-
 function ReviewColumn({
   kind,
   overall,
@@ -127,18 +95,32 @@ function ReviewColumn({
   overall: Overall | null
   summary: ReviewSummary | null
 }) {
-  const [tab, setTab] = useState<Tab>('ai')
+  const [tab, setTab] = useState<Tab>('all')
+  const [pointId, setPointId] = useState<number | null>(null)
 
+  const sample = summary?.reviews ?? []
   const byTone = (tone: ReviewTone) =>
-    (summary?.reviews ?? []).filter((r) => r.score !== null && reviewTone(kind, r.score) === tone)
+    sample.filter((r) => r.score !== null && reviewTone(kind, r.score) === tone)
   const counts: Record<Tab, number> = {
-    ai: 0,
-    all: summary?.reviews.length ?? 0,
+    all: sample.length,
     positive: byTone('positive').length,
     mixed: byTone('mixed').length,
     negative: byTone('negative').length,
   }
-  const shown = tab === 'all' ? (summary?.reviews ?? []) : tab === 'ai' ? [] : byTone(tab)
+
+  const point = summary ? [...summary.likes, ...summary.dislikes].find((p) => p.id === pointId) : undefined
+  // the tab narrows the sample by tone, a chosen point keeps only the reviews it is based on
+  const shown = (tab === 'all' ? sample : byTone(tab)).filter((r) => !point || point.review_ids.includes(r.id))
+
+  // choosing a point shows all the reviews it cites; choosing it again removes the filter
+  const toggle = (id: number) => {
+    if (id === pointId) {
+      setPointId(null)
+    } else {
+      setPointId(id)
+      setTab('all')
+    }
+  }
 
   return (
     <Card>
@@ -149,6 +131,26 @@ function ReviewColumn({
       <CardContent className="space-y-4">
         {summary ? (
           <>
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Резюме ИИ по {summary.sample_size}
+                {summary.total_reviews ? ` из ${summary.total_reviews}` : ''} отзывов · {summary.model} ·{' '}
+                {formatDateTime(summary.generated_at)}. Нажмите на пункт, чтобы оставить только отзывы, на которых он
+                основан.
+                {kind === 'critics' &&
+                  ' Доступные отзывы критиков смещены к высоким оценкам: отсутствие критики здесь не значит, что недостатков нет.'}
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <PointColumn heading="Что нравится" points={summary.likes} activeId={pointId} onToggle={toggle} />
+                <PointColumn
+                  heading="Что не нравится"
+                  points={summary.dislikes}
+                  activeId={pointId}
+                  onToggle={toggle}
+                />
+              </div>
+            </div>
+
             <div role="tablist" className="flex flex-wrap gap-x-4 gap-y-1 border-b">
               {TABS.map((t) => (
                 <button
@@ -163,25 +165,33 @@ function ReviewColumn({
                   )}
                 >
                   {t.label}
-                  {t.key !== 'ai' && <span className="ml-1 text-xs">({counts[t.key]})</span>}
+                  <span className="ml-1 text-xs">({counts[t.key]})</span>
                 </button>
               ))}
             </div>
-            {tab === 'ai' ? (
-              <SummaryTab kind={kind} summary={summary} />
-            ) : (
-              <div className="space-y-2">
+
+            <div className="space-y-2">
+              {point ? (
+                <div className="flex items-start justify-between gap-3 rounded-md bg-muted/40 p-2 pl-3">
+                  <p className="text-sm">
+                    Отзывы к пункту: <span className="font-medium">«{point.text}»</span>
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setPointId(null)}>
+                    Сбросить
+                  </Button>
+                </div>
+              ) : (
                 <p className="text-xs text-muted-foreground">
                   Выборка, на которой построено резюме: {summary.sample_size}
                   {summary.total_reviews ? ` из ${summary.total_reviews}` : ''} отзывов.
                 </p>
-                {shown.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">В выборке нет таких отзывов</p>
-                ) : (
-                  <ReviewList reviews={shown} kind={kind} />
-                )}
-              </div>
-            )}
+              )}
+              {shown.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Нет отзывов, подходящих под выбранный фильтр</p>
+              ) : (
+                <ReviewList reviews={shown} kind={kind} />
+              )}
+            </div>
           </>
         ) : (
           <p className="text-sm text-muted-foreground">Резюме ИИ и отзывы пока недоступны</p>

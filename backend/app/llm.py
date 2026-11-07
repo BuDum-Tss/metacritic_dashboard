@@ -26,7 +26,7 @@ class LLMClient:
         body = {
             "model": self.model,
             "temperature": 0.2,
-            "max_tokens": 1500,
+            "max_tokens": 4000,  # the analysis of every review comes before the points
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         }
         last_error: Exception | None = None
