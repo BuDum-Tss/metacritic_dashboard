@@ -62,3 +62,31 @@ def test_games_without_a_release_date_become_due_and_the_rest_keep_their_schedul
         due = dict(connection.execute(text("SELECT slug, next_check_at FROM games")).all())
     assert due["undated"].startswith("1970-01-01")  # the most overdue: visited first
     assert due["dated"] == later  # untouched
+
+
+def test_games_with_several_platforms_are_queued_for_a_new_analysis(tmp_path):
+    engine = make_engine(str(tmp_path / "reanalyze.db"))
+    checked = "2026-11-07 02:00:00"
+    game = (
+        "INSERT INTO games (id, source, slug, url, title, first_seen_at, updated_at, last_processed_at, next_check_at)"
+        " VALUES (:id, 'metacritic', :slug, 'u', :slug, '2026-11-06', '2026-11-06', '2026-11-06', '2026-11-08')"
+    )
+    platform = "INSERT INTO game_platforms (game_id, platform, name, updated_at) VALUES (:id, :platform, :platform, '2026-11-06')"
+    state = "INSERT INTO analysis_state (game_id, kind, checked_at, total_reviews) VALUES (:id, :kind, :checked, 12)"
+    with engine.begin() as connection:
+        config = alembic_config(connection)
+        command.upgrade(config, "0009")
+        for game_id, slug, platforms in ((1, "multi", ["pc", "ps5"]), (2, "single", ["pc"])):
+            connection.execute(text(game), {"id": game_id, "slug": slug})
+            for name in platforms:
+                connection.execute(text(platform), {"id": game_id, "platform": name})
+            for kind in ("critics", "users"):
+                connection.execute(text(state), {"id": game_id, "kind": kind, "checked": checked})
+
+        command.upgrade(config, "0010")
+
+        rows = connection.execute(text("SELECT game_id, kind, checked_at, total_reviews FROM analysis_state")).all()
+    by_game = {game_id: (str(at), total) for game_id, _, at, total in rows}
+    assert by_game[1][0].startswith("1970-01-01") and by_game[1][1] == -1  # both kinds of the multi-platform game
+    assert sum(1 for game_id, *_ in rows if game_id == 1) == 2
+    assert by_game[2] == (checked, 12)  # one platform: the same reviews as before, untouched
