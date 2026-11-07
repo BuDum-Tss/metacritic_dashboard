@@ -16,7 +16,7 @@ from app.sources.base import Game, GameSource, Review
 
 log = logging.getLogger(__name__)
 
-MIN_SAMPLE = 3  # fewer reviews of a kind give no summary
+MIN_SAMPLE = repo.MIN_REVIEWS
 MAX_POINTS = 4
 MAX_POINT_CHARS = 300
 
@@ -106,41 +106,56 @@ def parse_response(answer: str, count: int) -> tuple[list[Point], list[Point]]:
     return likes, dislikes
 
 
-def summarize_game(source: GameSource, game: Game, game_id: int, llm: LLMClient, now: datetime) -> int:
-    """Build the summaries of a game that are due. Returns how many were created."""
+def _checked(game_id: int, kind: str, total: int, now: datetime) -> None:
     with session_scope() as session:
-        due = repo.due_kinds(session, game_id, now, settings.summary_min_interval_hours)
-    if not due:
-        return 0
+        repo.record_check(session, game_id, kind, total, now)
 
-    bundle = source.fetch_reviews(game)
+
+def build_summaries(
+    source: GameSource, game: Game, game_id: int, plans: dict[str, repo.KindPlan], llm: LLMClient, now: datetime
+) -> int:
+    """Load the reviews of the planned kinds and build the summaries that are worth it.
+
+    The queue already checked that there are reviews and that their number changed. What is left
+    to check needs the reviews themselves: is the sample big enough and is it a new one. The
+    model is asked only when it is. Returns how many summaries were created.
+    """
+    with session_scope() as session:
+        marks = repo.summary_marks(session, game_id)
+
+    bundle = source.fetch_reviews(game, tuple(plans))  # the only requests to the review pages
     limits = {"critics": settings.critics_sample_limit, "users": settings.users_sample_limit}
-    totals = {"critics": bundle.stats.critics_total, "users": bundle.stats.users_total}
-    tones = {"critics": bundle.stats.critics_tones, "users": bundle.stats.users_tones}
 
     created = 0
-    for kind in due:
+    for kind, plan in plans.items():
         sample = build_sample(
             bundle.reviews, kind, limits[kind], settings.review_text_limit, seed=f"{game_id}:{kind}"
         )
         if len(sample) < MIN_SAMPLE:
-            log.info("%s: too few %s reviews (%d) for a summary", game.slug, kind, len(sample))
+            log.info("%s: too few %s reviews in the sample (%d)", game.slug, kind, len(sample))
+            _checked(game_id, kind, plan.total, now)
             continue
 
         digest = reviews_hash(sample)
-        with session_scope() as session:
-            latest = repo.latest_summary(session, game_id, kind)
-        if latest is not None and latest.reviews_hash == digest:
-            continue  # the same reviews: the summary is still right
+        if kind in marks and marks[kind].reviews_hash == digest:
+            _checked(game_id, kind, plan.total, now)  # the same reviews: the summary is still right
+            continue
 
+        prompt = build_prompt(game.title, kind, sample, plan.total, plan.tones)
         try:
-            prompt = build_prompt(game.title, kind, sample, totals[kind], tones[kind])
-            likes, dislikes = parse_response(llm.complete(SYSTEM_PROMPT, prompt), len(sample))
-        except (LLMError, SummaryError) as exc:
+            answer = llm.complete(SYSTEM_PROMPT, prompt)
+        except LLMError as exc:
+            log.warning("%s: no %s summary, the model is not available: %s", game.slug, kind, exc)
+            continue  # not checked: the next run tries again
+        try:
+            likes, dislikes = parse_response(answer, len(sample))
+        except SummaryError as exc:
             log.warning("%s: no %s summary: %s", game.slug, kind, exc)
+            _checked(game_id, kind, plan.total, now)  # the model answered: no more tokens until the reviews change
             continue
 
         with session_scope() as session:
-            repo.save_summary(session, game_id, kind, sample, totals[kind], llm.model, digest, likes, dislikes, now)
+            repo.save_summary(session, game_id, kind, sample, plan.total, llm.model, digest, likes, dislikes, now)
+            repo.record_check(session, game_id, kind, plan.total, now)
         created += 1
     return created

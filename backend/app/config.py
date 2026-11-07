@@ -5,8 +5,15 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_path: str = "data/metacritic.db"
-    batch_size: int = 20
-    sync_interval_hours: int = 1
+    crawl_budget: int = 250  # games the crawl loads per run: new ones and revisits together
+    analysis_budget: int = 40  # games the analysis works on per run
+    discovery_depth: int = 250  # how many of the newest games the lists are searched for new ones
+    young_days: int = 30  # a game is young this long after we found it
+    revisit_young_hours: int = 24
+    revisit_old_days: int = 7
+    crawl_interval_hours: int = 1
+    analysis_interval_hours: int = 1
+    analysis_offset_minutes: int = 30  # the analysis starts this long after the crawl
     sync_run_on_startup: bool = True
     request_delay_seconds: float = 1.0
     request_timeout_seconds: float = 30.0

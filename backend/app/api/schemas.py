@@ -16,6 +16,7 @@ class SyncRunOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    pipeline: str
     trigger: str
     status: str
     source: str
@@ -30,14 +31,21 @@ class SyncRunOut(BaseModel):
     _utc = field_validator("started_at", "finished_at")(as_utc)
 
 
-class SyncStatus(BaseModel):
+class PipelineStatus(BaseModel):
     running: bool
+    enabled: bool  # the analysis is off without a model
     interval_hours: int
+    budget: int  # games per run
     next_run_at: datetime | None
     current_run: SyncRunOut | None
     last_run: SyncRunOut | None
 
     _utc = field_validator("next_run_at")(as_utc)
+
+
+class SyncStatus(BaseModel):
+    crawl: PipelineStatus
+    analysis: PipelineStatus
 
 
 class PlatformOut(BaseModel):

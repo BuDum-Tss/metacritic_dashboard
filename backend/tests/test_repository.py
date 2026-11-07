@@ -95,11 +95,41 @@ def test_failed_save_rolls_back(factory):
         assert s.scalar(select(func.count()).select_from(Game)) == 0
 
 
-def test_processed_since(factory):
+def test_new_game_is_due_at_once(factory):
     with session_scope(factory) as s:
-        repository.save_game(s, "metacritic", make_game(slug="old"), T0 - timedelta(days=1))
-        repository.save_game(s, "metacritic", make_game(slug="today"), T0)
-        assert repository.processed_since(s, "metacritic", T0.replace(hour=0)) == {"today"}
+        result = repository.save_game(s, "metacritic", make_game(), T0)
+        assert s.scalar(select(Game.next_check_at)) == T0
+        assert result.first_seen_at == T0
+
+
+def test_known_slugs(factory):
+    with session_scope(factory) as s:
+        repository.save_game(s, "metacritic", make_game(slug="a"), T0)
+        repository.save_game(s, "steam", make_game(slug="b"), T0)
+        assert repository.known_slugs(s, "metacritic", ["a", "b", "c"]) == {"a"}
+        assert repository.known_slugs(s, "metacritic", []) == set()
+
+
+def test_due_slugs_are_the_overdue_ones_most_overdue_first(factory):
+    with session_scope(factory) as s:
+        ids = {}
+        for slug in ("late", "later", "future"):
+            ids[slug] = repository.save_game(s, "metacritic", make_game(slug=slug), T0).game_id
+        repository.set_next_check(s, ids["late"], T0 - timedelta(hours=1))
+        repository.set_next_check(s, ids["later"], T0 - timedelta(hours=5))
+        repository.set_next_check(s, ids["future"], T0 + timedelta(hours=1))
+        assert repository.due_slugs(s, "metacritic", T0, limit=10) == ["later", "late"]
+        assert repository.due_slugs(s, "metacritic", T0, limit=1) == ["later"]
+        assert repository.due_slugs(s, "steam", T0, limit=10) == []
+
+
+def test_postpone(factory):
+    with session_scope(factory) as s:
+        repository.save_game(s, "metacritic", make_game(slug="a"), T0)
+        repository.postpone(s, "metacritic", "a", T0 + timedelta(days=1))
+        repository.postpone(s, "metacritic", "unknown", T0 + timedelta(days=1))  # no such game: nothing happens
+        assert repository.due_slugs(s, "metacritic", T0 + timedelta(hours=1), limit=10) == []
+        assert repository.due_slugs(s, "metacritic", T0 + timedelta(days=1), limit=10) == ["a"]
 
 
 def test_sync_runs_count_only_successful_of_the_day(factory):

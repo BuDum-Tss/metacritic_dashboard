@@ -85,8 +85,11 @@ export interface PlatformOption {
   games: number
 }
 
+export type Pipeline = 'crawl' | 'analysis'
+
 export interface SyncRun {
   id: number
+  pipeline: Pipeline
   trigger: 'schedule' | 'manual'
   status: 'running' | 'success' | 'failed'
   source: string
@@ -99,13 +102,17 @@ export interface SyncRun {
   error: string | null
 }
 
-export interface SyncStatus {
+export interface PipelineStatus {
   running: boolean
+  enabled: boolean
   interval_hours: number
+  budget: number
   next_run_at: string | null
   current_run: SyncRun | null
   last_run: SyncRun | null
 }
+
+export type SyncStatus = Record<Pipeline, PipelineStatus>
 
 export type SortKey = 'metascore' | 'userscore' | 'title' | 'updated'
 export type SortOrder = 'asc' | 'desc'

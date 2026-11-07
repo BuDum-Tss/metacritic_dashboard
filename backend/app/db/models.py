@@ -33,6 +33,7 @@ class Game(Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime)
     updated_at: Mapped[datetime] = mapped_column(DateTime)
     last_processed_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    next_check_at: Mapped[datetime] = mapped_column(DateTime, index=True)  # when to visit the game again
 
     genres: Mapped[list["Genre"]] = relationship(secondary=game_genres, order_by="Genre.name")
     platforms: Mapped[list["GamePlatform"]] = relationship(
@@ -167,10 +168,23 @@ class SummaryPoint(Base):
     reviews: Mapped[list[Review]] = relationship(secondary=summary_point_reviews, order_by="Review.id")
 
 
+class AnalysisState(Base):
+    """When the reviews of a game were last checked and how many there were: the analysis
+    does not come back to a game until that number changes."""
+
+    __tablename__ = "analysis_state"
+
+    game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"), primary_key=True)
+    kind: Mapped[str] = mapped_column(String, primary_key=True)  # "critics" | "users"
+    checked_at: Mapped[datetime] = mapped_column(DateTime)
+    total_reviews: Mapped[int] = mapped_column(Integer)
+
+
 class SyncRun(Base):
     __tablename__ = "sync_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    pipeline: Mapped[str] = mapped_column(String)  # "crawl" | "analysis"
     trigger: Mapped[str] = mapped_column(String)  # "schedule" | "manual"
     status: Mapped[str] = mapped_column(String)  # "running" | "success" | "failed"
     source: Mapped[str] = mapped_column(String)

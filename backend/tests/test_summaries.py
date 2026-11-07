@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from app.db import repository
 from app.db import review_repository as repo
 from app.db import session as db_session
+from app.db.models import AnalysisState
 from app.db.models import Review as ReviewRow
 from app.db.session import init_db, make_engine, session_scope
 from app.llm import LLMError
@@ -16,6 +17,10 @@ from app.services.summaries import SummaryError, build_prompt, parse_response
 from app.sources.base import Game, PlatformScore, Review, ReviewBundle, ReviewStats
 
 NOW = datetime(2026, 11, 7, 12, 0)
+
+# what the queue hands over: the number of reviews and the tone split the crawl saw
+CRITICS = repo.KindPlan(total=51, tones={"positive": 50, "mixed": 1})
+USERS = repo.KindPlan(total=1405, tones={"positive": 1194, "mixed": 79, "negative": 132})
 
 
 def make_reviews(kind: str, scores: list[int], prefix: str = "") -> list[Review]:
@@ -28,14 +33,15 @@ def make_reviews(kind: str, scores: list[int], prefix: str = "") -> list[Review]
 class FakeSource:
     name = "fake"
 
-    def __init__(self, reviews: list[Review], stats: ReviewStats | None = None):
+    def __init__(self, reviews: list[Review]):
         self.reviews = reviews
-        self.stats = stats or ReviewStats()
         self.fetches = 0
+        self.requested: list[tuple[str, ...]] = []
 
-    def fetch_reviews(self, game: Game) -> ReviewBundle:
+    def fetch_reviews(self, game: Game, kinds: tuple[str, ...] = ("critics", "users")) -> ReviewBundle:
         self.fetches += 1
-        return ReviewBundle(reviews=list(self.reviews), stats=self.stats)
+        self.requested.append(tuple(kinds))
+        return ReviewBundle(reviews=[r for r in self.reviews if r.kind in kinds], stats=ReviewStats())
 
 
 class FakeLLM:
@@ -78,18 +84,23 @@ def summary_count() -> int:
         return s.scalar(select(func.count()).select_from(repo.ReviewSummary))
 
 
-def test_both_summaries_are_created_with_points_linked_to_reviews(game_id):
-    source = FakeSource(
-        make_reviews("critics", [95, 90, 60, 80]) + make_reviews("users", [10, 9, 4, 8, 2]),
-        ReviewStats(critics_total=51, users_total=1405, users_tones={"positive": 1194, "mixed": 79, "negative": 132}),
-    )
-    llm = FakeLLM()
-
-    assert summaries.summarize_game(source, GAME, game_id, llm, NOW) == 2
-
+def checks() -> dict[str, tuple[datetime, int]]:
     with session_scope() as s:
-        critics = repo.latest_summary(s, game_id, "critics")
-        users = repo.latest_summary(s, game_id, "users")
+        return {st.kind: (st.checked_at, st.total_reviews) for st in s.scalars(select(AnalysisState))}
+
+
+def build(source, game_id, llm, plans, now=NOW) -> int:
+    return summaries.build_summaries(source, GAME, game_id, plans, llm, now)
+
+
+def test_both_summaries_are_created_with_points_linked_to_reviews(game_id):
+    source = FakeSource(make_reviews("critics", [95, 90, 60, 80]) + make_reviews("users", [10, 9, 4, 8, 2]))
+
+    assert build(source, game_id, FakeLLM(), {"critics": CRITICS, "users": USERS}) == 2
+
+    with session_scope() as session:
+        critics = repo.latest_summary(session, game_id, "critics")
+        users = repo.latest_summary(session, game_id, "users")
         assert (critics.sample_size, critics.total_reviews, critics.model) == (4, 51, "fake-model")
         assert (users.sample_size, users.total_reviews) == (5, 1405)
         likes = [p for p in users.points if p.kind == "like"]
@@ -97,7 +108,8 @@ def test_both_summaries_are_created_with_points_linked_to_reviews(game_id):
         assert [p.text for p in likes] == ["Great combat"]
         assert [p.text for p in dislikes] == ["Weak story"]
         assert len(likes[0].reviews) == 2 and len(dislikes[0].reviews) == 1
-        assert s.scalar(select(func.count()).select_from(ReviewRow)) == 9
+        assert session.scalar(select(func.count()).select_from(ReviewRow)) == 9
+    assert checks() == {"critics": (NOW, 51), "users": (NOW, 1405)}  # remembered for the queue
 
 
 def test_point_refers_to_the_review_the_model_cited(game_id):
@@ -105,12 +117,10 @@ def test_point_refers_to_the_review_the_model_cited(game_id):
     seen: dict[str, str] = {}
 
     def answer(prompt: str) -> str:
-        seen["prompt"] = prompt
-        line = next(l for l in prompt.splitlines() if l.startswith("[R2]"))
-        seen["r2"] = line
+        seen["r2"] = next(line for line in prompt.splitlines() if line.startswith("[R2]"))
         return json.dumps({"likes": [{"text": "Fine", "reviews": ["R2"]}], "dislikes": []})
 
-    summaries.summarize_game(source, GAME, game_id, FakeLLM(answer), NOW)
+    build(source, game_id, FakeLLM(answer), {"users": USERS})
 
     with session_scope() as s:
         point = repo.latest_summary(s, game_id, "users").points[0]
@@ -156,68 +166,60 @@ def test_unusable_answers_are_errors(answer):
         parse_response(answer, 3)
 
 
-def test_too_few_reviews_give_no_summary(game_id):
-    source = FakeSource(make_reviews("critics", [95, 90]))
+def test_a_sample_that_is_too_small_gives_no_summary_but_is_remembered(game_id):
+    source = FakeSource(make_reviews("critics", [95, 90]))  # the site counted 3, but only 2 have a text
     llm = FakeLLM()
-    assert summaries.summarize_game(source, GAME, game_id, llm, NOW) == 0
+    assert build(source, game_id, llm, {"critics": repo.KindPlan(3, {})}) == 0
     assert llm.prompts == []
+    assert checks() == {"critics": (NOW, 3)}  # not asked about again until the number changes
 
 
-def test_a_model_failure_leaves_no_summary_and_does_not_raise(game_id):
+def test_a_model_that_is_not_available_leaves_no_trace_so_the_next_run_tries_again(game_id):
     source = FakeSource(make_reviews("critics", [95, 90, 60]))
-    assert summaries.summarize_game(source, GAME, game_id, FakeLLM(error=LLMError("down")), NOW) == 0
+    assert build(source, game_id, FakeLLM(error=LLMError("down")), {"critics": CRITICS}) == 0
     assert summary_count() == 0
+    assert checks() == {}
 
 
-def test_unparsable_answer_leaves_no_summary(game_id):
+def test_an_unparsable_answer_leaves_no_summary_but_is_remembered(game_id):
     source = FakeSource(make_reviews("critics", [95, 90, 60]))
-    assert summaries.summarize_game(source, GAME, game_id, FakeLLM("sorry, no"), NOW) == 0
+    assert build(source, game_id, FakeLLM("sorry, no"), {"critics": CRITICS}) == 0
     assert summary_count() == 0
+    assert checks() == {"critics": (NOW, 51)}  # the model answered: no more tokens until the reviews change
 
 
-def test_summary_is_not_rebuilt_within_the_minimal_interval(game_id):
-    source = FakeSource(make_reviews("users", [10, 9, 4]) + make_reviews("critics", [90, 80, 60]))
-    summaries.summarize_game(source, GAME, game_id, FakeLLM(), NOW)
-    fetches = source.fetches
-
-    source.reviews = make_reviews("users", [10, 9, 4], prefix="new ") + make_reviews("critics", [95, 85, 55])
-    llm = FakeLLM()
-    assert summaries.summarize_game(source, GAME, game_id, llm, NOW + timedelta(hours=23)) == 0
-    assert source.fetches == fetches  # not even the review pages are requested
-    assert llm.prompts == []
-
-
-def test_a_kind_without_a_summary_is_tried_again_next_time(game_id):
-    source = FakeSource(make_reviews("users", [10, 9, 4]))  # no critic reviews yet
-    summaries.summarize_game(source, GAME, game_id, FakeLLM(), NOW)
-
-    source.reviews += make_reviews("critics", [90, 80, 60])
-    assert summaries.summarize_game(source, GAME, game_id, FakeLLM(), NOW + timedelta(hours=1)) == 1
-    with session_scope() as s:
-        assert repo.latest_summary(s, game_id, "critics") is not None
-
-
-def test_unchanged_reviews_after_the_interval_keep_the_summary(game_id):
-    source = FakeSource(make_reviews("users", [10, 9, 4]))
-    summaries.summarize_game(source, GAME, game_id, FakeLLM(), NOW)
+def test_the_same_sample_costs_no_tokens(game_id):
+    reviews = make_reviews("users", [10, 9, 4])
+    source = FakeSource(reviews)
+    build(source, game_id, FakeLLM(), {"users": repo.KindPlan(1000, {})})
 
     llm = FakeLLM()
-    assert summaries.summarize_game(source, GAME, game_id, llm, NOW + timedelta(hours=25)) == 0
+    later = NOW + timedelta(hours=25)
+    # the site counts one more review, but our sample is the same
+    assert build(source, game_id, llm, {"users": repo.KindPlan(1001, {})}, later) == 0
     assert llm.prompts == []
     assert summary_count() == 1
+    assert checks() == {"users": (later, 1001)}
 
 
-def test_changed_reviews_after_the_interval_add_a_new_version(game_id):
+def test_changed_reviews_add_a_new_version_and_reuse_the_known_ones(game_id):
     source = FakeSource(make_reviews("users", [10, 9, 4]))
-    summaries.summarize_game(source, GAME, game_id, FakeLLM(), NOW)
+    build(source, game_id, FakeLLM(), {"users": repo.KindPlan(3, {})})
 
     source.reviews = make_reviews("users", [10, 9, 4]) + make_reviews("users", [7], prefix="new ")
-    assert summaries.summarize_game(source, GAME, game_id, FakeLLM(), NOW + timedelta(hours=25)) == 1
+    later = NOW + timedelta(hours=25)
+    assert build(source, game_id, FakeLLM(), {"users": repo.KindPlan(4, {})}, later) == 1
 
     assert summary_count() == 2
     with session_scope() as s:
         latest = repo.latest_summary(s, game_id, "users")
         assert latest.sample_size == 4
-        assert latest.generated_at == NOW + timedelta(hours=25)
-        # the three old reviews are reused, only the new one is added
-        assert s.scalar(select(func.count()).select_from(ReviewRow)) == 4
+        assert latest.generated_at == later
+        assert s.scalar(select(func.count()).select_from(ReviewRow)) == 4  # only the new one is added
+
+
+def test_only_the_planned_kinds_are_requested(game_id):
+    source = FakeSource(make_reviews("users", [10, 9, 4]) + make_reviews("critics", [90, 80, 60]))
+    build(source, game_id, FakeLLM(), {"critics": CRITICS})
+    assert source.requested == [("critics",)]  # the player pages are not requested
+    assert set(checks()) == {"critics"}

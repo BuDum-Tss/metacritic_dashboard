@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api, ApiError } from '@/api/client'
-import type { SyncRun } from '@/api/types'
+import type { Pipeline, PipelineStatus, SyncRun } from '@/api/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -38,65 +38,94 @@ function Progress({ run }: { run: SyncRun }) {
   )
 }
 
-export function MonitoringPage() {
-  const queryClient = useQueryClient()
+const PIPELINES: { pipeline: Pipeline; title: string; description: string; startLabel: string }[] = [
+  {
+    pipeline: 'crawl',
+    title: 'Обход',
+    description: 'Находит новые игры и обновляет известные: страницы игр, оценки по платформам.',
+    startLabel: 'Запустить обход',
+  },
+  {
+    pipeline: 'analysis',
+    title: 'Анализ отзывов',
+    description: 'Читает отзывы и строит резюме ИИ для игр, у которых изменилось число отзывов.',
+    startLabel: 'Запустить анализ',
+  },
+]
 
-  const status = useQuery({
-    queryKey: ['sync', 'status'],
-    queryFn: api.syncStatus,
-    refetchInterval: (query) => (query.state.data?.running ? FAST_POLL_MS : SLOW_POLL_MS),
-  })
-  const running = status.data?.running ?? false
+function PipelinePanel({
+  pipeline,
+  title,
+  description,
+  startLabel,
+  status,
+}: {
+  pipeline: Pipeline
+  title: string
+  description: string
+  startLabel: string
+  status: PipelineStatus | undefined
+}) {
+  const queryClient = useQueryClient()
+  const running = status?.running ?? false
+  const off = status !== undefined && !status.enabled
+
   const runs = useQuery({
-    queryKey: ['sync', 'runs'],
-    queryFn: () => api.syncRuns(20),
+    queryKey: ['sync', 'runs', pipeline],
+    queryFn: () => api.syncRuns(pipeline, 10),
     refetchInterval: running ? FAST_POLL_MS : SLOW_POLL_MS,
   })
-
   const start = useMutation({
-    mutationFn: api.runSync,
+    mutationFn: () => api.runSync(pipeline),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['sync'] }),
   })
   const alreadyRunning = start.error instanceof ApiError && start.error.status === 409
 
-  const current = status.data?.current_run
-  const last = status.data?.last_run
+  const current = status?.current_run
+  const last = status?.last_run
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Мониторинг</h1>
-        <Button onClick={() => start.mutate()} disabled={running || start.isPending}>
-          {running ? 'Цикл выполняется…' : 'Запустить обработку'}
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold">{title}</h2>
+            {off && <Badge variant="outline">ИИ не настроен</Badge>}
+          </div>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+        <Button onClick={() => start.mutate()} disabled={running || off || start.isPending}>
+          {running ? 'Выполняется…' : startLabel}
         </Button>
       </div>
 
-      {status.isError && <p className="text-destructive">Нет связи с сервером: {status.error.message}</p>}
       {start.isError && !alreadyRunning && (
-        <p className="text-destructive">Не удалось запустить: {start.error.message}</p>
+        <p className="text-sm text-destructive">Не удалось запустить: {start.error.message}</p>
       )}
-      {alreadyRunning && <p className="text-sm text-muted-foreground">Цикл уже выполняется.</p>}
+      {alreadyRunning && <p className="text-sm text-muted-foreground">Уже выполняется.</p>}
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card size="sm">
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Воркер</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Состояние</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            <p className="text-lg font-semibold">{running ? 'Работает' : 'Ожидает'}</p>
+            <p className="text-lg font-semibold">{off ? 'Выключен' : running ? 'Работает' : 'Ожидает'}</p>
             {current && <Progress run={current} />}
           </CardContent>
         </Card>
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">Следующий запуск</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-semibold">{formatDateTime(status.data?.next_run_at ?? null)}</p>
-            <p className="text-xs text-muted-foreground">Интервал: {status.data?.interval_hours ?? '—'} ч</p>
+            <p className="text-lg font-semibold">{off ? '—' : formatDateTime(status?.next_run_at ?? null)}</p>
+            <p className="text-xs text-muted-foreground">
+              Раз в {status?.interval_hours ?? '—'} ч · до {status?.budget ?? '—'} игр за запуск
+            </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card size="sm">
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">Последний запуск</CardTitle>
           </CardHeader>
@@ -116,48 +145,62 @@ export function MonitoringPage() {
         </Card>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Журнал запусков</h2>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>Статус</TableHead>
-              <TableHead>Запуск</TableHead>
-              <TableHead>Пачка</TableHead>
-              <TableHead>Начало</TableHead>
-              <TableHead>Длительность</TableHead>
-              <TableHead>Найдено</TableHead>
-              <TableHead>Обработано</TableHead>
-              <TableHead>Ошибок</TableHead>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>#</TableHead>
+            <TableHead>Статус</TableHead>
+            <TableHead>Запуск</TableHead>
+            <TableHead>Начало</TableHead>
+            <TableHead>Длительность</TableHead>
+            <TableHead>Выбрано</TableHead>
+            <TableHead>Обработано</TableHead>
+            <TableHead>Ошибок</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {(runs.data ?? []).map((run) => (
+            <TableRow key={run.id}>
+              <TableCell>{run.id}</TableCell>
+              <TableCell title={run.error ?? undefined}>
+                <StatusBadge status={run.status} />
+              </TableCell>
+              <TableCell>{run.trigger === 'manual' ? 'Вручную' : 'По расписанию'}</TableCell>
+              <TableCell>{formatDateTime(run.started_at)}</TableCell>
+              <TableCell>{formatDuration(run.started_at, run.finished_at)}</TableCell>
+              <TableCell>{run.games_found ?? '—'}</TableCell>
+              <TableCell>{run.games_processed ?? '—'}</TableCell>
+              <TableCell>{run.games_failed ?? '—'}</TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(runs.data ?? []).map((run) => (
-              <TableRow key={run.id}>
-                <TableCell>{run.id}</TableCell>
-                <TableCell title={run.error ?? undefined}>
-                  <StatusBadge status={run.status} />
-                </TableCell>
-                <TableCell>{run.trigger === 'manual' ? 'Вручную' : 'По расписанию'}</TableCell>
-                <TableCell>{run.batch_index}</TableCell>
-                <TableCell>{formatDateTime(run.started_at)}</TableCell>
-                <TableCell>{formatDuration(run.started_at, run.finished_at)}</TableCell>
-                <TableCell>{run.games_found ?? '—'}</TableCell>
-                <TableCell>{run.games_processed ?? '—'}</TableCell>
-                <TableCell>{run.games_failed ?? '—'}</TableCell>
-              </TableRow>
-            ))}
-            {runs.data?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={9} className="py-6 text-center text-muted-foreground">
-                  Запусков ещё не было
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </section>
+          ))}
+          {runs.data?.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={8} className="py-6 text-center text-muted-foreground">
+                Запусков ещё не было
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </section>
+  )
+}
+
+export function MonitoringPage() {
+  const status = useQuery({
+    queryKey: ['sync', 'status'],
+    queryFn: api.syncStatus,
+    refetchInterval: (query) =>
+      query.state.data?.crawl.running || query.state.data?.analysis.running ? FAST_POLL_MS : SLOW_POLL_MS,
+  })
+
+  return (
+    <div className="space-y-10">
+      <h1 className="text-2xl font-bold">Мониторинг</h1>
+      {status.isError && <p className="text-destructive">Нет связи с сервером: {status.error.message}</p>}
+      {PIPELINES.map((p) => (
+        <PipelinePanel key={p.pipeline} {...p} status={status.data?.[p.pipeline]} />
+      ))}
     </div>
   )
 }

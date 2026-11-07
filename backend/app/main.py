@@ -11,12 +11,15 @@ from app.sources.metacritic.source import MetacriticSource
 
 
 def create_app(source: GameSource | None = None, scheduler_enabled: bool = True) -> FastAPI:
-    source = source or MetacriticSource()
+    # the pipelines run side by side, so each gets its own source (its own connection and
+    # pause between requests); a source passed in, as in the tests, serves both
+    crawl_source = source or MetacriticSource()
+    analysis_source = source or MetacriticSource()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(engine)
-        app.state.scheduler = create_scheduler(source) if scheduler_enabled else None
+        app.state.scheduler = create_scheduler(crawl_source, analysis_source) if scheduler_enabled else None
         if app.state.scheduler:
             app.state.scheduler.start()
         yield
@@ -24,7 +27,8 @@ def create_app(source: GameSource | None = None, scheduler_enabled: bool = True)
             app.state.scheduler.shutdown(wait=False)
 
     app = FastAPI(title="Metacritic Dashboard", lifespan=lifespan)
-    app.state.source = source
+    app.state.crawl_source = crawl_source
+    app.state.analysis_source = analysis_source
     app.state.scheduler = None
     app.include_router(sync_api.router)
     app.include_router(games_api.router)

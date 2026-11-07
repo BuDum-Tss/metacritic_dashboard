@@ -1,6 +1,7 @@
 import type {
   GameDetail,
   GamePage,
+  Pipeline,
   PlatformOption,
   SortKey,
   SortOrder,
@@ -55,6 +56,8 @@ export const api = {
   game: (id: number) => request<GameDetail>(`/api/games/${id}`),
   platforms: () => request<PlatformOption[]>('/api/games/platforms'),
   syncStatus: () => request<SyncStatus>('/api/sync/status'),
-  syncRuns: (limit = 20) => request<SyncRun[]>(`/api/sync/runs?limit=${limit}`),
-  runSync: () => request<{ status: string }>('/api/sync/run', { method: 'POST' }),
+  syncRuns: (pipeline: Pipeline, limit = 20) =>
+    request<SyncRun[]>(`/api/sync/runs?pipeline=${pipeline}&limit=${limit}`),
+  runSync: (pipeline: Pipeline) =>
+    request<{ status: string }>(`/api/sync/run?pipeline=${pipeline}`, { method: 'POST' }),
 }

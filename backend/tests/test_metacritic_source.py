@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from app.sources.metacritic.list_parser import parse_browse, parse_new_releases
 from app.sources.metacritic.source import NEW_RELEASES_URL, MetacriticSource
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -27,23 +28,31 @@ class FakeClient:
         return (FIXTURES / name).read_text(encoding="utf-8")
 
 
-def test_batch_zero_is_new_releases():
-    source = MetacriticSource(FakeClient())
-    assert len(source.list_batch(0, 20)) == 20
+def slugs_of(name: str, parser) -> list[str]:
+    return parser((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-def test_first_see_all_batch_reads_page_one():
+def test_discover_starts_with_new_releases_then_see_all():
     client = FakeClient()
-    slugs = MetacriticSource(client).list_batch(1, 20)
-    assert len(slugs) == 20
-    assert [params for _, params in client.calls] == [{"page": 1}]
+    refs = MetacriticSource(client).discover(60)
+    new_releases = slugs_of("home.html", parse_new_releases)
+    assert refs[:20] == new_releases
+    assert len(refs) == 60 and len(set(refs)) == 60  # a game of both lists is counted once
+    assert [params for _, params in client.calls] == [None, {"page": 1}]
 
 
-def test_batch_crossing_page_boundary_loads_next_page():
+def test_discover_goes_through_the_pages_until_nothing_new_is_added():
+    client = FakeClient()  # every SEE ALL page is the same fixture: page 2 adds nothing
+    refs = MetacriticSource(client).discover(500)
+    expected = set(slugs_of("home.html", parse_new_releases)) | set(slugs_of("browse.html", parse_browse))
+    assert set(refs) == expected and len(refs) == len(expected)
+    assert [params for _, params in client.calls] == [None, {"page": 1}, {"page": 2}]
+
+
+def test_discover_with_a_small_limit_needs_no_see_all_page():
     client = FakeClient()
-    slugs = MetacriticSource(client).list_batch(3, 20)  # SEE ALL positions 40..59
-    assert len(slugs) == 20
-    assert [params for _, params in client.calls] == [{"page": 1}, {"page": 2}]
+    assert len(MetacriticSource(client).discover(5)) == 5
+    assert len(client.calls) == 1
 
 
 def test_fetch_game_loads_user_score_per_platform():
@@ -105,3 +114,16 @@ def test_game_without_reviews_pages_makes_no_extra_requests():
 
     source.fetch_reviews(game)
     assert client.calls == []
+
+
+def test_fetch_reviews_loads_only_the_pages_of_the_requested_kinds():
+    client = FakeClient()
+    source = MetacriticSource(client)
+    game = source.fetch_game("phantom-blade-zero")
+    client.calls.clear()
+
+    bundle = source.fetch_reviews(game, ("users",))
+
+    urls = [url for url, _ in client.calls]
+    assert len(urls) == 1 and "user-reviews" in urls[0]  # no critic pages
+    assert {r.kind for r in bundle.reviews} == {"users"}

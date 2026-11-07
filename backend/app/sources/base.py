@@ -78,14 +78,14 @@ class GameSource(Protocol):
 
     name: str
 
-    def list_batch(self, batch_index: int, limit: int) -> list[str]:
-        """Refs of the games of the day's `batch_index`-th batch (0-based)."""
+    def discover(self, limit: int) -> list[str]:
+        """Refs of the newest `limit` games, newest first. Used only to find new games."""
         ...
 
     def fetch_game(self, ref: str) -> Game:
         """Load and parse one game completely."""
         ...
 
-    def fetch_reviews(self, game: Game) -> ReviewBundle:
-        """Collect the reviews available for a game, plus the site's totals."""
+    def fetch_reviews(self, game: Game, kinds: tuple[str, ...] = ("critics", "users")) -> ReviewBundle:
+        """Collect the reviews of the given kinds available for a game, plus the site's totals."""
         ...

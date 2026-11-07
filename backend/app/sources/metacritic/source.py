@@ -6,7 +6,6 @@ from app.sources.metacritic.review_parser import parse_game_page_reviews, parse_
 
 NEW_RELEASES_URL = f"{BASE_URL}/game/"
 SEE_ALL_URL = f"{BASE_URL}/browse/game/all/all/all-time/new/"
-SEE_ALL_PAGE_SIZE = 50
 CRITIC_PLATFORMS = 2  # critic pages are taken for this many platforms with the most critic reviews
 
 
@@ -22,22 +21,20 @@ class MetacriticSource:
         self._client = client or HttpClient()
         self._last_page: tuple[str, str] | None = None  # (slug, html) of the last game page
 
-    def list_batch(self, batch_index: int, limit: int) -> list[str]:
-        """Batch 0 is New Releases; batch n >= 1 is SEE ALL starting at (n - 1) * limit."""
-        if batch_index == 0:
-            return parse_new_releases(self._client.get(NEW_RELEASES_URL))[:limit]
-
-        position = (batch_index - 1) * limit
-        page = position // SEE_ALL_PAGE_SIZE + 1
-        skip = position % SEE_ALL_PAGE_SIZE
-        slugs: list[str] = []
-        while len(slugs) < skip + limit:
-            page_slugs = parse_browse(self._client.get(SEE_ALL_URL, params={"page": page}))
-            if not page_slugs:
+    def discover(self, limit: int) -> list[str]:
+        """New Releases first, then SEE ALL page by page until `limit` games are collected."""
+        refs = parse_new_releases(self._client.get(NEW_RELEASES_URL))
+        seen = set(refs)
+        page = 1
+        while len(refs) < limit:
+            slugs = parse_browse(self._client.get(SEE_ALL_URL, params={"page": page}))
+            fresh = [slug for slug in slugs if slug not in seen]
+            if not fresh:  # the end of the list, or a page that adds nothing
                 break
-            slugs.extend(page_slugs)
+            refs += fresh
+            seen.update(fresh)
             page += 1
-        return slugs[skip : skip + limit]
+        return refs[:limit]
 
     def fetch_game(self, ref: str) -> Game:
         url = f"{BASE_URL}/game/{ref}/"
@@ -53,20 +50,25 @@ class MetacriticSource:
             platform.user_reviews_count = score.user_reviews_count
         return game
 
-    def fetch_reviews(self, game: Game) -> ReviewBundle:
-        """Reviews from the game page and the review pages (only the HTML of the site is used)."""
-        if self._last_page and self._last_page[0] == game.slug:
-            main_html = self._last_page[1]
-        else:
-            main_html = self._client.get(f"{BASE_URL}/game/{game.slug}/")
+    def _game_page(self, slug: str) -> str:
+        if self._last_page and self._last_page[0] == slug:
+            return self._last_page[1]
+        return self._client.get(f"{BASE_URL}/game/{slug}/")
 
-        reviews: list[Review] = parse_game_page_reviews(main_html)
-        for platform in _top_platforms(game.platforms, "critic_reviews_count", CRITIC_PLATFORMS):
-            html = self._client.get(
-                f"{BASE_URL}/game/{game.slug}/critic-reviews/", params={"platform": platform.slug}
-            )
-            reviews += parse_review_page(html, "critics", platform.name)
-        for platform in _top_platforms(game.platforms, "user_reviews_count", 1):
-            html = self._client.get(f"{BASE_URL}/game/{game.slug}/user-reviews/", params={"platform": platform.slug})
-            reviews += parse_review_page(html, "users", platform.name)
+    def fetch_reviews(self, game: Game, kinds: tuple[str, ...] = ("critics", "users")) -> ReviewBundle:
+        """Reviews from the game page and the review pages (only the HTML of the site is used)."""
+        main_html = self._game_page(game.slug)
+        reviews: list[Review] = [r for r in parse_game_page_reviews(main_html) if r.kind in kinds]
+        if "critics" in kinds:
+            for platform in _top_platforms(game.platforms, "critic_reviews_count", CRITIC_PLATFORMS):
+                html = self._client.get(
+                    f"{BASE_URL}/game/{game.slug}/critic-reviews/", params={"platform": platform.slug}
+                )
+                reviews += parse_review_page(html, "critics", platform.name)
+        if "users" in kinds:
+            for platform in _top_platforms(game.platforms, "user_reviews_count", 1):
+                html = self._client.get(
+                    f"{BASE_URL}/game/{game.slug}/user-reviews/", params={"platform": platform.slug}
+                )
+                reviews += parse_review_page(html, "users", platform.name)
         return ReviewBundle(reviews=reviews, stats=parse_review_stats(main_html))
