@@ -49,8 +49,11 @@ export function DashboardPage() {
         // while the numbers reload the page keeps its shape and only dims
         <div className={cn('space-y-8 transition-opacity', dashboard.isFetching && 'opacity-70')}>
           <Tiles tiles={data.tiles} />
-          <SuccessMap points={data.map.points} attentionMedian={data.map.attention_median} />
-          <GenreTable genres={data.genres} />
+          {/* the map is square; the genres take the rest of the row */}
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,1fr)]">
+            <SuccessMap points={data.map.points} attentionMedian={data.map.attention_median} />
+            <GenreTable genres={data.genres} />
+          </div>
           <Divergences criticsLove={data.divergences.critics_love} playersLove={data.divergences.players_love} />
           <Rhythm days={data.rhythm.days} coverage={data.rhythm.coverage} />
         </div>

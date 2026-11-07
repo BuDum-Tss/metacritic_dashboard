@@ -128,7 +128,7 @@ export function SuccessMap({ points, attentionMedian }: { points: MapPoint[]; at
         </p>
       ) : (
         <>
-          <div className="h-96">
+          <div className="aspect-square w-full">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 8, right: 16, bottom: 24, left: 0 }}>
                 <CartesianGrid stroke="var(--viz-grid)" />
