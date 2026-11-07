@@ -128,3 +128,32 @@
     @apply font-sans;
     }
 }
+/* chart colours: one accent hue with a lighter and a deeper step, recessive chrome */
+:root {
+  --viz-accent: #2a78d6;
+  --viz-accent-soft: #6da7ec;
+  --viz-accent-deep: #184f95;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-ink: #52514e;
+  --viz-muted: #898781;
+}
+
+.dark {
+  --viz-accent: #3987e5;
+  --viz-accent-soft: #256abf;
+  --viz-accent-deep: #9ec5f4;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-ink: #c3c2b7;
+  --viz-muted: #898781;
+}
+
+/* a point of the success map lifts when hovered */
+.viz-dot circle:last-of-type {
+  transition: r 120ms ease;
+}
+.viz-dot:hover circle:last-of-type,
+.viz-dot:focus-visible circle:last-of-type {
+  r: 7px;
+}

@@ -48,12 +48,13 @@ erDiagram
 | `description` | TEXT | описание |
 | `video_url` | TEXT | ссылка на видео |
 | `content_hash` | TEXT | хэш описательных полей (название, обложка, разработчик, описание, видео, жанры) |
+| `release_date` | TEXT | дата релиза игры (`YYYY-MM-DD`, из страницы игры), `NULL` пока неизвестна |
 | `first_seen_at` | TEXT NOT NULL | когда игра впервые попала в базу |
 | `updated_at` | TEXT NOT NULL | когда описательные поля менялись в последний раз |
 | `last_processed_at` | TEXT NOT NULL | когда игра обрабатывалась в последний раз |
 | `next_check_at` | TEXT NOT NULL | когда игру пора проверить в следующий раз (расписание повторных визитов) |
 
-Индексы: `(source, slug)` (уникальный), `last_processed_at`, `next_check_at` (выбор игр, которые пора проверить).
+Индексы: `(source, slug)` (уникальный), `last_processed_at`, `next_check_at` (выбор игр, которые пора проверить), `release_date` (сортировка и ритм релизов на дашборде).
 
 ### `genres`
 

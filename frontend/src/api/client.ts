@@ -1,4 +1,5 @@
 import type {
+  Dashboard,
   GameDetail,
   GamePage,
   Pipeline,
@@ -56,6 +57,7 @@ export const api = {
   },
   game: (id: number) => request<GameDetail>(`/api/games/${id}`),
   platforms: () => request<PlatformOption[]>('/api/games/platforms'),
+  dashboard: () => request<Dashboard>('/api/dashboard'),
   syncStatus: () => request<SyncStatus>('/api/sync/status'),
   syncRuns: (pipeline: Pipeline, limit = 20) =>
     request<SyncRun[]>(`/api/sync/runs?pipeline=${pipeline}&limit=${limit}`),

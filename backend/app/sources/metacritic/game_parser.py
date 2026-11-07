@@ -1,6 +1,7 @@
 import json
 import re
 from dataclasses import dataclass
+from datetime import date
 from urllib.parse import parse_qs, urlparse
 
 from bs4 import BeautifulSoup
@@ -116,6 +117,14 @@ def _overall(soup: BeautifulSoup) -> list[OverallScore]:
     return result
 
 
+def _release_date(ld: dict) -> date | None:
+    """The release day from the JSON-LD `datePublished` ("2026-11-05"), None when absent or odd."""
+    try:
+        return date.fromisoformat(str(ld.get("datePublished"))[:10])
+    except ValueError:
+        return None
+
+
 def parse_game(html: str, slug: str) -> Game:
     """Parse a game page. Platforms come without user scores (see parse_user_score)."""
     soup = BeautifulSoup(html, "html.parser")
@@ -137,6 +146,7 @@ def parse_game(html: str, slug: str) -> Game:
         developer=_developer(soup),
         description=ld.get("description") or None,
         video_url=trailer.get("embedUrl") or trailer.get("contentUrl"),
+        release_date=_release_date(ld),
         genres=_genres(soup, ld),
         platforms=_platform_cards(soup),
         overall=_overall(soup),

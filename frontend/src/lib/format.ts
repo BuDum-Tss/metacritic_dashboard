@@ -51,3 +51,17 @@ const COUNT_FORMS: Record<'critics' | 'users', [string, string, string]> = {
 export function countLabel(kind: 'critics' | 'users', count: number | null): string {
   return count === null ? 'нет данных' : `${count} ${plural(count, COUNT_FORMS[kind])}`
 }
+
+export function formatDate(iso: string): string {
+  // a plain date (2026-11-05): read it as a calendar day, whatever the time zone
+  const [year, month, day] = iso.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+export function compact(n: number): string {
+  return new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+}
+
+export function decimal(n: number | null, digits = 1): string {
+  return n === null ? '—' : n.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+}

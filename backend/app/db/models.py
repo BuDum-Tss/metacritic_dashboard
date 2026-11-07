@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     JSON,
     Column,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -42,6 +43,7 @@ class Game(Base):
     description: Mapped[str | None] = mapped_column(Text)
     video_url: Mapped[str | None] = mapped_column(String)
     content_hash: Mapped[str | None] = mapped_column(String)
+    release_date: Mapped[date | None] = mapped_column(Date, index=True)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime)
     updated_at: Mapped[datetime] = mapped_column(DateTime)
     last_processed_at: Mapped[datetime] = mapped_column(DateTime, index=True)

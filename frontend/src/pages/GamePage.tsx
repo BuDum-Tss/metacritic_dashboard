@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { countLabel, formatDateTime } from '@/lib/format'
+import { countLabel, formatDate, formatDateTime } from '@/lib/format'
 
 // the height of an element, kept up to date while it is resized
 function useHeight<T extends HTMLElement>() {
@@ -55,6 +55,9 @@ function Hero({ game: g }: { game: GameDetail }) {
               <div className="min-w-0">
                 <h1 className="text-3xl font-bold">{g.title}</h1>
                 {g.developer && <p className="text-muted-foreground">Разработчик: {g.developer}</p>}
+                {g.release_date && (
+                  <p className="text-muted-foreground">Дата выхода: {formatDate(g.release_date)}</p>
+                )}
               </div>
               <GameScore score={g.score} size="lg" captions />
             </div>
@@ -109,7 +112,7 @@ export function GamePage() {
     return (
       <div className="space-y-3">
         <p className="text-destructive">{notFound ? 'Игра не найдена' : `Ошибка: ${game.error.message}`}</p>
-        <Link to="/" className="text-sm underline">
+        <Link to="/games" className="text-sm underline">
           К списку игр
         </Link>
       </div>
@@ -119,7 +122,7 @@ export function GamePage() {
   const g = game.data
   return (
     <div className="space-y-8">
-      <Link to="/" className="text-sm text-muted-foreground hover:underline">
+      <Link to="/games" className="text-sm text-muted-foreground hover:underline">
         ← К списку игр
       </Link>
 

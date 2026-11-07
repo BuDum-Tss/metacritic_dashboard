@@ -64,6 +64,7 @@ export interface GameDetail extends GameShort {
   url: string
   description: string | null
   video_url: string | null
+  release_date: string | null
   first_seen_at: string
   updated_at: string
   last_processed_at: string
@@ -123,5 +124,53 @@ export interface PipelineStatus {
 
 export type SyncStatus = Record<Pipeline, PipelineStatus>
 
-export type SortKey = 'metascore' | 'userscore' | 'title' | 'updated'
+export type SortKey = 'metascore' | 'userscore' | 'release' | 'title' | 'updated'
 export type SortOrder = 'asc' | 'desc'
+
+export interface DashboardTiles {
+  games_total: number
+  new_7d: number
+  hits_share: number | null
+  avg_gap: number | null
+}
+
+export interface MapPoint {
+  id: number
+  title: string
+  critics: number | null
+  users: number | null
+  attention: number
+}
+
+export interface GenreStat {
+  genre: string
+  games: number
+  avg_critics: number | null
+  avg_users: number | null
+  avg_attention: number
+}
+
+export interface Divergence {
+  id: number
+  title: string
+  critics: number
+  users: number
+  gap: number
+  reason: { source: ReviewKind; text: string } | null
+}
+
+export interface RhythmDay {
+  date: string
+  games: number
+  avg_critics: number | null
+  games_avg7: number
+  critics_avg7: number | null
+}
+
+export interface Dashboard {
+  tiles: DashboardTiles
+  map: { points: MapPoint[]; attention_median: number | null }
+  genres: GenreStat[]
+  divergences: { critics_love: Divergence[]; players_love: Divergence[] }
+  rhythm: { days: RhythmDay[]; coverage: { with_date: number; total: number } }
+}

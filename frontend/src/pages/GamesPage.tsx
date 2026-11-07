@@ -16,6 +16,7 @@ const ALL = 'all'
 const sortItems = [
   { value: 'metascore', label: 'Metascore' },
   { value: 'userscore', label: 'Userscore' },
+  { value: 'release', label: 'Дата релиза' },
   { value: 'title', label: 'Название' },
   { value: 'updated', label: 'Дата добавления' },
 ]

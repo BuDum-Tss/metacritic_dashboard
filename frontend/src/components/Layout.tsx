@@ -3,7 +3,8 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
 const links = [
-  { to: '/', label: 'Игры', end: true },
+  { to: '/', label: 'Дашборд', end: true },
+  { to: '/games', label: 'Игры', end: false },
   { to: '/monitoring', label: 'Мониторинг', end: false },
 ]
 

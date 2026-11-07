@@ -78,6 +78,8 @@ def save_game(session: Session, source: str, game: base.Game, now: datetime) -> 
         row.content_hash = digest
         row.updated_at = now
     row.last_processed_at = now
+    if game.release_date is not None:
+        row.release_date = game.release_date  # not part of the hash: it is set or corrected on any visit
     session.flush()
 
     _save_platforms(session, row, game.platforms, now)

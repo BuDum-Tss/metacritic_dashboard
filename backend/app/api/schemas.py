@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -150,6 +150,7 @@ class GameDetail(GameShort):
     url: str
     description: str | None
     video_url: str | None
+    release_date: date | None
     first_seen_at: datetime
     updated_at: datetime
     last_processed_at: datetime
@@ -171,3 +172,79 @@ class PlatformOption(BaseModel):
     platform: str
     name: str
     games: int
+
+
+# ---- the dashboard of the market ----
+
+
+class TilesOut(BaseModel):
+    games_total: int
+    new_7d: int
+    hits_share: int | None  # percent of games with both scores that are hits
+    avg_gap: float | None  # mean |Metascore - Userscore x 10| over the same games
+
+
+class MapPointOut(BaseModel):
+    id: int
+    title: str
+    critics: int | None
+    users: float | None
+    attention: int  # player ratings over all platforms
+
+
+class MapOut(BaseModel):
+    points: list[MapPointOut]
+    attention_median: int | None
+
+
+class GenreStatOut(BaseModel):
+    genre: str
+    games: int
+    avg_critics: float | None
+    avg_users: float | None
+    avg_attention: int
+
+
+class ReasonOut(BaseModel):
+    source: str  # whose summary the complaint comes from: "critics" | "users"
+    text: str
+
+
+class DivergenceOut(BaseModel):
+    id: int
+    title: str
+    critics: int
+    users: float
+    gap: float  # Metascore - Userscore x 10
+    reason: ReasonOut | None
+
+
+class DivergencesOut(BaseModel):
+    critics_love: list[DivergenceOut]  # critics praise, players do not
+    players_love: list[DivergenceOut]  # players love, critics do not
+
+
+class RhythmDayOut(BaseModel):
+    date: date
+    games: int
+    avg_critics: float | None
+    games_avg7: float
+    critics_avg7: float | None
+
+
+class CoverageOut(BaseModel):
+    with_date: int
+    total: int
+
+
+class RhythmOut(BaseModel):
+    days: list[RhythmDayOut]
+    coverage: CoverageOut
+
+
+class DashboardOut(BaseModel):
+    tiles: TilesOut
+    map: MapOut
+    genres: list[GenreStatOut]
+    divergences: DivergencesOut
+    rhythm: RhythmOut

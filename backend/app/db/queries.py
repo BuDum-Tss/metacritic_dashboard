@@ -2,12 +2,12 @@
 
 from dataclasses import dataclass
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Game, GameOverallScore, GamePlatform, game_genres
 
-SORTS = ("metascore", "userscore", "title", "updated")
+SORTS = ("metascore", "userscore", "release", "title", "updated")
 SIMILAR_LIMIT = 6
 
 
@@ -48,12 +48,14 @@ def list_games(
     column = {
         "metascore": scores.c.metascore,
         "userscore": scores.c.userscore,
+        # a release date in the future (or none) counts as unknown and goes last
+        "release": case((Game.release_date <= func.date("now"), Game.release_date)),
         "title": func.lower(Game.title),
         "updated": Game.first_seen_at,
     }[sort]
     direction = column.asc() if order == "asc" else column.desc()
-    if sort in ("metascore", "userscore"):
-        direction = direction.nulls_last()  # games without a score always go last
+    if sort in ("metascore", "userscore", "release"):
+        direction = direction.nulls_last()  # games without a score or date always go last
     query = query.order_by(direction, Game.id.desc()).limit(page_size).offset((page - 1) * page_size)
     query = query.options(selectinload(Game.genres), selectinload(Game.platforms))
     return GamePage(items=list(session.scalars(query)), total=total)

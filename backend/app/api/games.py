@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/games", tags=["games"])
 def list_games(
     q: str | None = Query(None, max_length=100),
     platform: str | None = None,
-    sort: Literal["metascore", "userscore", "title", "updated"] = "metascore",
+    sort: Literal["metascore", "userscore", "release", "title", "updated"] = "metascore",
     order: Literal["asc", "desc"] = "desc",
     page: int = Query(1, ge=1),
     page_size: int = Query(24, ge=1, le=100),

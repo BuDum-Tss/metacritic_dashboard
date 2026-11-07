@@ -1,5 +1,6 @@
 import hashlib
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Protocol
 
 
@@ -35,6 +36,7 @@ class Game:
     developer: str | None = None
     description: str | None = None
     video_url: str | None = None
+    release_date: date | None = None  # the day the game came out
     genres: list[str] = field(default_factory=list)
     platforms: list[PlatformScore] = field(default_factory=list)
     overall: list[OverallScore] = field(default_factory=list)
