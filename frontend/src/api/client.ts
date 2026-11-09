@@ -11,6 +11,7 @@ import type {
   SyncStatus,
   Transcripts,
   VideoKind,
+  VideoSummary,
 } from './types'
 
 export class ApiError extends Error {
@@ -62,6 +63,10 @@ export const api = {
     request<Transcripts>(`/api/games/${gameId}/transcripts/${kind}${videoId ? `?video_id=${encodeURIComponent(videoId)}` : ''}`),
   requestTranscripts: (gameId: number, kind: VideoKind) =>
     request<{ status: string }>(`/api/games/${gameId}/transcripts/${kind}`, { method: 'POST' }),
+  videoSummary: (gameId: number, videoId: string) =>
+    request<VideoSummary>(`/api/games/${gameId}/summaries/${encodeURIComponent(videoId)}`),
+  requestVideoSummary: (gameId: number, videoId: string) =>
+    request<{ status: string }>(`/api/games/${gameId}/summaries/${encodeURIComponent(videoId)}`, { method: 'POST' }),
   platforms: () => request<PlatformOption[]>('/api/games/platforms'),
   dashboard: () => request<Dashboard>('/api/dashboard'),
   syncStatus: () => request<SyncStatus>('/api/sync/status'),

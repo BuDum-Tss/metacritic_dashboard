@@ -214,7 +214,9 @@ def test_a_restart_cuts_short_what_was_running(client):
 # ------------------------------------------------------------------ the API
 def test_the_state_of_a_game_without_transcripts_is_empty(client):
     body = client.get("/api/games/1/transcripts/letsplay").json()
-    assert body == {"kind": "letsplay", "running": False, "stt_enabled": False, "videos": [], "segments": None}
+    assert body == {
+        "kind": "letsplay", "running": False, "stt_enabled": False, "llm_enabled": False, "videos": [], "segments": None,
+    }
 
 
 def test_a_request_without_a_video_is_refused(client):

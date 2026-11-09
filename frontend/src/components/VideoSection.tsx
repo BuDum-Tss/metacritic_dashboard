@@ -3,8 +3,9 @@ import { CircleAlert, CircleCheck, CircleDashed, Clock, LoaderCircle } from 'luc
 import { useRef, useState } from 'react'
 
 import { api } from '@/api/client'
-import type { TranscriptStatus, Video, VideoKind } from '@/api/types'
+import type { TranscriptStatus, TranscriptVideo, Video, VideoKind } from '@/api/types'
 import { Button } from '@/components/ui/button'
+import { VideoSummaryPanel } from '@/components/VideoSummaryPanel'
 import { formatTimecode, videoKindLabels } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +25,14 @@ const statusLabels: Record<PartStatus, string> = {
   running: 'обрабатывается',
   done: 'проанализирована',
   failed: 'ошибка',
+}
+
+// The state of a series: the transcript, then the summary (when the model is configured) must be done.
+function partStatus(item: TranscriptVideo, llmEnabled: boolean, running: boolean): PartStatus {
+  if (item.status !== 'done') return item.status
+  if (!llmEnabled || item.summary_status === 'done') return 'done'
+  if (item.summary_status === 'failed') return 'failed'
+  return item.summary_status === 'running' || running ? 'running' : 'pending'
 }
 
 function StatusIcon({ status }: { status: PartStatus }) {
@@ -71,7 +80,8 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
   const parts = data?.videos ?? []
   const part = parts.find((item) => item.video_id === videoId)
   const running = Boolean(data?.running)
-  const allDone = parts.length > 0 && parts.every((item) => item.status === 'done')
+  const llmEnabled = Boolean(data?.llm_enabled)
+  const allDone = parts.length > 0 && parts.every((item) => partStatus(item, llmEnabled, running) === 'done')
   const analysed = part?.status === 'done'
   const segments = data?.segments ?? null
 
@@ -102,7 +112,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
           video_id: item.video_id,
           label: kind === 'letsplay' ? `Серия ${item.position + 1}` : videoKindLabels[kind],
           title: item.title ?? item.video_id,
-          status: item.status,
+          status: partStatus(item, llmEnabled, running),
         }))
       : [
           {
@@ -175,7 +185,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
           ))}
         </div>
         <Button size="sm" className="shrink-0" disabled={running || allDone || start.isPending} onClick={() => start.mutate()}>
-          {running ? 'Идёт расшифровка…' : allDone ? 'Всё проанализировано' : 'Проанализировать все'}
+          {running ? 'Идёт анализ…' : allDone ? 'Всё проанализировано' : 'Проанализировать все'}
         </Button>
       </div>
       {start.isError && <p className="text-sm text-destructive">{start.error.message}</p>}
@@ -208,7 +218,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
             <div className="relative min-h-0 flex-1 rounded-lg border">
             <div className="max-h-96 overflow-y-auto md:absolute md:inset-0 md:max-h-none">
               {tab === 'summary' ? (
-                <p className="p-4 text-sm text-muted-foreground">Резюме по видео появится позже.</p>
+                <VideoSummaryPanel key={videoId} gameId={gameId} videoId={videoId} onSeek={seek} />
               ) : segments && segments.length > 0 ? (
                 <>
                   <p className="border-b px-3 py-1.5 text-xs text-muted-foreground">
@@ -246,7 +256,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
         <div className="mx-auto max-w-3xl space-y-2">
           {player}
           <p className={cn('text-center text-sm', part?.status === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>
-            {note ?? 'Видео не анализировалось: нажмите «Проанализировать все», чтобы получить транскрипт.'}
+            {note ?? 'Видео не анализировалось: нажмите «Проанализировать все», чтобы получить транскрипт и резюме.'}
           </p>
         </div>
       )}

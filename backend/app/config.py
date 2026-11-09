@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     stt_timeout_seconds: float = 120.0
     transcript_max_playlist_videos: int = 50
 
+    video_summary_chunk_chars: int = 24000  # the transcript goes to the model in windows of this size
+    video_summary_moments_per_chunk: int = 10
+    video_summary_max_moments: int = 80
+
     summary_min_interval_hours: int = 24
     critics_sample_limit: int = 30
     users_sample_limit: int = 40

@@ -12,6 +12,7 @@ from collections.abc import Callable
 from app.config import settings
 from app.db import repository, transcript_repository, video_repository
 from app.db.session import session_scope
+from app.services import video_summary
 from app.transcripts.captions import CaptionsUnavailable, Segment, fetch_captions
 from app.transcripts.stt import SttError, make_stt
 from app.videos.youtube import YouTubeError, make_youtube_client
@@ -54,6 +55,7 @@ def run_transcripts(
         captions = captions or fetch_captions
         stt = stt if stt is not None else make_stt()
         _run(game_id, kind, captions, stt, youtube)
+        video_summary.build_missing(game_id, kind)
     except Exception:
         log.exception("transcript of game %d (%s) failed", game_id, kind)
     finally:

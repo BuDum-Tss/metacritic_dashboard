@@ -242,6 +242,28 @@ class VideoTranscript(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime)
 
 
+class VideoSummary(Base):
+    """The conclusion about one video built from its transcript, on request.
+
+    status: running | done | failed. text holds links to the video time as [words](t=seconds);
+    moments is the list of {start, type, topic, note} the text is based on.
+    """
+
+    __tablename__ = "video_summaries"
+    __table_args__ = (UniqueConstraint("game_id", "video_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"))
+    video_id: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="running")
+    text: Mapped[str | None] = mapped_column(Text)
+    moments: Mapped[list | None] = mapped_column(JSON)
+    model: Mapped[str | None] = mapped_column(String)
+    prompt_version: Mapped[int | None] = mapped_column(Integer)
+    error: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime)
+
+
 class SyncRun(Base):
     __tablename__ = "sync_runs"
 

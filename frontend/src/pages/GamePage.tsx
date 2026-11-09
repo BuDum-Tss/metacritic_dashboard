@@ -160,8 +160,6 @@ export function GamePage() {
         )}
       </div>
 
-      {g.videos.length > 0 && <VideoSection key={`video-${g.id}`} gameId={g.id} videos={g.videos} />}
-
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Оценки по платформам</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -190,6 +188,8 @@ export function GamePage() {
           ))}
         </div>
       </section>
+
+      {g.videos.length > 0 && <VideoSection key={`video-${g.id}`} gameId={g.id} videos={g.videos} />}
 
       <ReviewsSection key={`reviews-${g.id}`} overall={g.overall} summaries={g.summaries} />
 

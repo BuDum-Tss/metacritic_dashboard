@@ -89,14 +89,35 @@ export interface TranscriptVideo {
   language: string | null
   duration_seconds: number | null
   error: string | null
+  summary_status: 'none' | 'pending' | 'running' | 'done' | 'failed'
 }
 
 export interface Transcripts {
   kind: VideoKind
   running: boolean
   stt_enabled: boolean
+  llm_enabled: boolean
   videos: TranscriptVideo[]
   segments: TranscriptSegment[] | null
+}
+
+export interface Moment {
+  start: number
+  type: 'problem' | 'positive'
+  topic: string
+  note: string
+}
+
+export interface VideoSummary {
+  video_id: string
+  status: 'none' | 'pending' | 'running' | 'done' | 'failed'
+  running: boolean
+  llm_enabled: boolean
+  text: string | null
+  moments: Moment[]
+  error: string | null
+  model: string | null
+  updated_at: string | null
 }
 
 export interface GameDetail extends GameShort {

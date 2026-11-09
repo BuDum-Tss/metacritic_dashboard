@@ -284,7 +284,26 @@ erDiagram
 | `error` | TEXT | причина, если `status = failed` |
 | `updated_at` | DATETIME NOT NULL | |
 
-Уникальный ключ: `(game_id, video_id)`. Заключение по расшифровке (вкладка «Резюме») пока не хранится.
+Уникальный ключ: `(game_id, video_id)`.
+
+### `video_summaries`
+
+Заключение по транскрипту одного видео, строится по запросу. Подробности — в [ARCHITECTURE.md](ARCHITECTURE.md), раздел «Резюме видео».
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `game_id` | INTEGER FK → games.id, ON DELETE CASCADE | |
+| `video_id` | TEXT NOT NULL | видео YouTube |
+| `status` | TEXT NOT NULL | `pending` (в очереди после миграции), `running`, `done`, `failed` |
+| `text` | TEXT | заключение; ссылки на таймкоды записаны как `[слова](t=секунды)` |
+| `moments` | JSON | список ярких моментов `{start, type, topic, note}` |
+| `model` | TEXT | модель, построившая заключение |
+| `prompt_version` | INTEGER | версия запроса |
+| `error` | TEXT | причина, если `status = failed` |
+| `updated_at` | DATETIME NOT NULL | |
+
+Уникальный ключ: `(game_id, video_id)`.
 
 ## Вычисляемые данные
 

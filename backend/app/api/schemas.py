@@ -172,14 +172,37 @@ class TranscriptVideoOut(BaseModel):
     language: str | None
     duration_seconds: int | None
     error: str | None
+    summary_status: str = "none"  # none | pending | running | done | failed
 
 
 class TranscriptsOut(BaseModel):
     kind: str
     running: bool  # a task builds the transcripts now
     stt_enabled: bool  # videos without subtitles can be recognised
+    llm_enabled: bool = False  # the summaries are built by the same request
     videos: list[TranscriptVideoOut]
     segments: list[SegmentOut] | None  # the text of the requested video, when it is done
+
+
+class MomentOut(BaseModel):
+    start: int  # seconds from the start of the video
+    type: str  # problem | positive
+    topic: str
+    note: str
+
+
+class VideoSummaryOut(BaseModel):
+    video_id: str
+    status: str  # none | running | done | failed
+    running: bool
+    llm_enabled: bool
+    text: str | None  # the conclusion, links to the time as [words](t=seconds)
+    moments: list[MomentOut]
+    error: str | None
+    model: str | None
+    updated_at: datetime | None
+
+    _utc = field_validator("updated_at")(as_utc)
 
 
 class GameDetail(GameShort):
