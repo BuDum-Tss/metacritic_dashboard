@@ -490,3 +490,47 @@ def test_the_migration_drops_the_commentary_free_letsplay_with_its_transcripts_a
         assert [v.kind for v in video_repository.list_videos(session, 1)] == ["review"]  # the review stays
         assert video_summary_repository.get_summary(session, 1, "v1") is None
         assert transcript_repository.list_transcripts(session, 1, "letsplay") == []
+
+
+def test_a_broken_object_costs_only_that_moment():
+    answer = (
+        '{"moments": [\n'
+        '{"t": 20, "who": "author", "quote": "where do i go now", "type": "problem", "topic": "navigation", "note": "Lost", "weight": 2},\n'
+        '{"t": 100, "who": "author", "quote": "I said "love this music" twice", "type": "positive", "topic": "sound", "note": "Likes it"},\n'
+        '{"t": 0, "who": "author", "quote": "ugh not again", "type": "problem", "topic": "other", "note": "Annoyed", "weight": 1}\n'
+        ']}'
+    )
+    assert [m.start for m in parse_moments(answer, WINDOW, 10)] == [20, 0]  # the middle one has quotes inside quotes
+
+
+def test_an_answer_with_no_valid_object_is_still_an_error():
+    with pytest.raises(VideoSummaryError):
+        parse_moments('{"moments": [{"t": 1, "quote": "a "b" c"}]', WINDOW, 10)
+
+
+def test_a_part_with_an_unreadable_answer_is_skipped(client, monkeypatch):
+    monkeypatch.setattr(settings, "video_summary_chunk_chars", 120)  # several windows
+    calls = {"n": 0}
+
+    class Flaky(FakeLLM):
+        def complete(self, system, user):
+            if "bright moments in" in system:
+                calls["n"] += 1
+                if calls["n"] <= 2:  # the first window answers with rubbish twice
+                    return "not json at all"
+            return super().complete(system, user)
+
+    run(Flaky(moments=[
+        {"t": 100, "who": "author", "quote": "line 10", "type": "problem", "topic": "controls", "note": "Fights the camera", "weight": 2},
+    ]))
+    assert row()[0] == "done"
+
+
+def test_when_every_part_is_unreadable_the_reason_says_so(client):
+    class Rubbish(FakeLLM):
+        def complete(self, system, user):
+            return "not json at all"
+
+    run(Rubbish())
+    status, _, _, error, _ = row()
+    assert status == "failed" and "no bright moments" in error and "unreadable answer" in error

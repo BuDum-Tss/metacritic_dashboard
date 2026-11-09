@@ -72,6 +72,7 @@ Do not invent anything that is not in the text.
 - "weight" is 1 (minor), 2 (clear) or 3 (strong or repeated).
 - Give at most {limit} moments, the most important ones. Ordinary narration is not a moment: an \
 empty list is a good answer for a dull part.
+- Inside the strings never use double quotes (they break the JSON): write single quotes instead. \
 - Answer with one JSON object and nothing else:
   {{"moments": [{{"t": 123, "who": "author", "quote": "...", "type": "problem", "topic": "controls", "note": "...", "weight": 2}}]}}
 - You are a part of a program: do not greet, do not talk about yourself and do not ask anything. \
@@ -190,6 +191,29 @@ def _json(answer: str) -> dict:
     return data
 
 
+FLAT_OBJECT = re.compile(r"\{[^{}]*\}")
+
+
+def _raw_moments(answer: str) -> list:
+    """The moments of an answer as dicts. When the whole JSON is broken (a quote in a quote is the usual
+    cause), the flat objects that are still valid are taken one by one: one bad moment costs one moment."""
+    try:
+        raw = _json(answer).get("moments")
+        return raw if isinstance(raw, list) else []
+    except VideoSummaryError:
+        items = []
+        for chunk in FLAT_OBJECT.findall(answer):
+            try:
+                item = json.loads(chunk)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(item, dict) and "t" in item:
+                items.append(item)
+        if not items:
+            raise
+        return items
+
+
 def _nearest(value: int, options: list[int], limit: int) -> int | None:
     best = min(options, key=lambda option: abs(option - value), default=None)
     return best if best is not None and abs(best - value) <= limit else None
@@ -208,9 +232,8 @@ def parse_moments(answer: str, window: list[tuple[int, str]], limit: int) -> lis
     """
     starts = [start for start, _ in window]
     haystack = _plain(" ".join(text for _, text in window))
-    raw = _json(answer).get("moments")
     moments: list[Moment] = []
-    for item in raw if isinstance(raw, list) else []:
+    for item in _raw_moments(answer):
         if not isinstance(item, dict):
             continue
         try:
@@ -363,18 +386,26 @@ def _build(game_id: int, video_id: str, llm: LLMClient) -> tuple[str, list[Momen
     limit = settings.video_summary_moments_per_chunk
     system = MOMENTS_PROMPT.format(language=language, limit=limit)
     found: list[Moment] = []
+    unreadable = 0
     for window in make_windows(segments, settings.video_summary_chunk_chars):
         try:
             found += _ask(
                 llm, system, f"Game: {title}\nVideo: {kind}\n\nTranscript:\n{window_text(window)}",
                 lambda answer, window=window: parse_moments(answer, window, limit),
             )
-        except (LLMError, VideoSummaryError) as exc:
+        except LLMError as exc:
             raise VideoSummaryError(f"the model failed on a part of the transcript: {exc}") from exc
+        except VideoSummaryError as exc:
+            # a part with an unreadable answer (twice) is skipped: one bad part does not spoil a long video
+            unreadable += 1
+            log.warning("a part of the transcript of %s was skipped: %s", video_id, exc)
 
     moments = select_moments(found, settings.video_summary_max_moments)
     if not moments:
-        raise VideoSummaryError("no bright moments were found in the transcript")
+        raise VideoSummaryError(
+            "no bright moments were found in the transcript"
+            + (f" ({unreadable} parts of it got an unreadable answer from the model)" if unreadable else "")
+        )
     try:
         text = _ask(
             llm, CONCLUSION_PROMPT.format(language=language), conclusion_prompt(title, kind, moments),
