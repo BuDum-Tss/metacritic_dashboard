@@ -181,28 +181,31 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
       {start.isError && <p className="text-sm text-destructive">{start.error.message}</p>}
 
       {analysed ? (
-        <div className="grid gap-4 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="flex gap-1 md:flex-col" role="tablist" aria-label="Раздел">
-            {tabs.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                role="tab"
-                aria-selected={tab === item.value}
-                onClick={() => setTab(item.value)}
-                className={cn(
-                  'rounded-md px-3 py-1.5 text-left text-sm',
-                  tab === item.value ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* on a wide screen the text and its tabs are on the left, the player on the right */}
+          <div className="md:order-2">{player}</div>
 
-          {player}
-
-          <div className="relative min-h-72 rounded-lg border">
+          <div className="flex min-h-72 flex-col gap-2 md:order-1 md:min-h-0">
+            <div className="flex gap-4 border-b text-sm" role="tablist" aria-label="Раздел">
+              {tabs.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === item.value}
+                  onClick={() => setTab(item.value)}
+                  className={cn(
+                    '-mb-px border-b-2 px-1 pb-2 font-medium',
+                    tab === item.value
+                      ? 'border-foreground text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="relative min-h-0 flex-1 rounded-lg border">
             <div className="max-h-96 overflow-y-auto md:absolute md:inset-0 md:max-h-none">
               {tab === 'summary' ? (
                 <p className="p-4 text-sm text-muted-foreground">Резюме по видео появится позже.</p>
@@ -235,6 +238,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
               ) : (
                 <p className="p-4 text-sm text-muted-foreground">Загружаю текст…</p>
               )}
+            </div>
             </div>
           </div>
         </div>
