@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ThumbsDown, ThumbsUp } from 'lucide-react'
+import { LoaderCircle, ThumbsDown, ThumbsUp } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { api } from '@/api/client'
@@ -108,17 +108,26 @@ export function VideoSummaryPanel({
   const running = data.running || data.status === 'running' || data.status === 'pending'
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" disabled={running || start.isPending || !data.llm_enabled} onClick={() => start.mutate()}>
-          {running ? 'Составляю резюме…' : data.text ? 'Составить заново' : 'Составить резюме'}
-        </Button>
-        {!data.llm_enabled && <span className="text-xs text-muted-foreground">Модель не настроена (нет LLM_API_KEY).</span>}
-      </div>
+    <div className="flex min-h-full flex-col gap-4 p-4">
+      {/* a ready summary is not rebuilt from here: the button is for a missing or a failed one */}
+      {!running && (!data.text || data.status === 'failed') && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={start.isPending || !data.llm_enabled} onClick={() => start.mutate()}>
+            Составить резюме
+          </Button>
+          {!data.llm_enabled && <span className="text-xs text-muted-foreground">Модель не настроена (нет LLM_API_KEY).</span>}
+        </div>
+      )}
+      {running && (
+        <div className="flex min-h-40 flex-1 flex-col items-center justify-center gap-3 text-sm text-muted-foreground" role="status">
+          <LoaderCircle className="size-8 animate-spin text-primary" aria-hidden />
+          Составляю резюме…
+        </div>
+      )}
       {start.isError && <p className="text-sm text-destructive">{start.error.message}</p>}
       {data.status === 'failed' && data.error && <p className="text-sm text-destructive">Не получилось: {data.error}</p>}
 
-      {data.text ? (
+      {data.text && !running ? (
         <>
           <LinkedText text={data.text} onSeek={onSeek} />
           {data.moments.length > 0 && (

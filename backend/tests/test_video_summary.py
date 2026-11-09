@@ -311,3 +311,29 @@ def test_the_migration_queues_the_summaries_of_the_finished_transcripts(client):
         assert module.queue_missing(connection) == 1  # v1 is finished, v2 is not
         assert module.queue_missing(connection) == 0
     assert statuses() == {"v1": "pending"}
+
+
+def test_the_migration_requeues_the_summaries_of_the_first_version(client):
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).parents[1] / "app/db/migrations/versions/0016_requeue_russian_summaries.py"
+    spec = importlib.util.spec_from_file_location("migration_0016", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    with session_scope() as session:
+        video_summary_repository.mark_running(session, 1, "v1", NOW)
+        video_summary_repository.save_done(session, 1, "v1", "Старый текст", [], "m", 1, NOW)
+    with db_session.SessionLocal.kw["bind"].begin() as connection:
+        assert module.requeue_old(connection) == 1
+        assert module.requeue_old(connection) == 0
+    with session_scope() as session:
+        row = video_summary_repository.get_summary(session, 1, "v1")
+        assert (row.status, row.text) == ("pending", "Старый текст")
+
+
+def test_new_summaries_carry_the_current_prompt_version(client):
+    run(FakeLLM())
+    with session_scope() as session:
+        assert video_summary_repository.get_summary(session, 1, "v1").prompt_version == service.PROMPT_VERSION == 2

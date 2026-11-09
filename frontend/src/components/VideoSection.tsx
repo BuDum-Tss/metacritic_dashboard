@@ -9,6 +9,8 @@ import { VideoSummaryPanel } from '@/components/VideoSummaryPanel'
 import { formatTimecode, videoKindLabels } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+const WORKING = 'working'
+
 type Tab = 'transcript' | 'summary'
 
 const tabs: { value: Tab; label: string }[] = [
@@ -49,6 +51,16 @@ function StatusIcon({ status }: { status: PartStatus }) {
     default:
       return <CircleDashed className={cn(common, 'text-muted-foreground')} aria-hidden />
   }
+}
+
+// A spinner with a text in the middle of the place it is put into.
+function Loading({ text, className }: { text: string; className?: string }) {
+  return (
+    <div className={cn('flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground', className)} role="status">
+      <LoaderCircle className="size-8 animate-spin text-primary" aria-hidden />
+      {text}
+    </div>
+  )
 }
 
 // The video of a game. Until it is analysed only the player is shown, in the middle; after that the
@@ -141,7 +153,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
   let note: string | null = null
   if (!analysed) {
     if (part?.status === 'failed') note = `Не получилось: ${part.error ?? 'неизвестная ошибка'}`
-    else if (part?.status === 'running' || part?.status === 'pending' || running) note = 'Идёт расшифровка…'
+    else if (part?.status === 'running' || part?.status === 'pending' || running) note = WORKING
   }
 
   return (
@@ -246,7 +258,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
                   </ul>
                 </>
               ) : (
-                <p className="p-4 text-sm text-muted-foreground">Загружаю текст…</p>
+                <Loading text="Загружаю текст…" className="h-full min-h-40" />
               )}
             </div>
             </div>
@@ -255,9 +267,13 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
       ) : (
         <div className="mx-auto max-w-3xl space-y-2">
           {player}
-          <p className={cn('text-center text-sm', part?.status === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>
-            {note ?? 'Видео не анализировалось: нажмите «Проанализировать все», чтобы получить транскрипт и резюме.'}
-          </p>
+          {note === WORKING ? (
+            <Loading text="Идёт расшифровка…" className="py-4" />
+          ) : (
+            <p className={cn('text-center text-sm', part?.status === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>
+              {note ?? 'Видео не анализировалось: нажмите «Проанализировать все», чтобы получить транскрипт и резюме.'}
+            </p>
+          )}
         </div>
       )}
     </section>

@@ -20,7 +20,7 @@ from app.llm import LLMClient, LLMError, make_llm_client
 log = logging.getLogger(__name__)
 
 # Raise it when the instructions change.
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 
 TYPES = ("problem", "positive")
 TOPICS = ("controls", "navigation", "event", "mechanics", "story", "visuals", "sound", "performance", "overall", "other")
@@ -288,7 +288,7 @@ def _build(game_id: int, video_id: str, llm: LLMClient) -> tuple[str, list[Momen
         segments, kind = list(transcript.segments or []), transcript.kind
         title = session.get(Game, game_id).title
 
-    language = "Russian"
+    language = "English"
     limit = settings.video_summary_moments_per_chunk
     system = MOMENTS_PROMPT.format(language=language, limit=limit)
     found: list[Moment] = []
