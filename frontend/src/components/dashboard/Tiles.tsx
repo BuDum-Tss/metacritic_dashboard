@@ -26,12 +26,12 @@ export function Tiles({ tiles }: { tiles: DashboardTiles }) {
       <Tile
         label={t('tiles.hits')}
         value={tiles.hits_share === null ? '—' : `${tiles.hits_share}%`}
-        note={t('tiles.hitsNote')}
+        note={t('tiles.hitsNote', { hits: tiles.hits, total: tiles.rated_games })}
       />
       <Tile
         label={t('tiles.gap')}
         value={decimal(tiles.avg_gap)}
-        note={t('tiles.gapNote')}
+        note={t('tiles.gapNote', { n: tiles.rated_games })}
       />
     </div>
   )

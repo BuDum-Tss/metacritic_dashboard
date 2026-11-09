@@ -194,6 +194,8 @@ export interface DashboardTiles {
   new_7d: number
   hits_share: number | null
   avg_gap: number | null
+  hits: number
+  rated_games: number
 }
 
 export interface MapPoint {

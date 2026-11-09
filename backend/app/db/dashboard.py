@@ -67,6 +67,8 @@ def _tiles(stats: list[GameStat], both: list[GameStat], now: datetime) -> dict:
         "games_total": len(stats),
         "new_7d": sum(1 for g in stats if g.first_seen_at >= now - timedelta(days=7)),
         "hits_share": half_up(100 * len(hits) / len(both)) if both else None,
+        "hits": len(hits),
+        "rated_games": len(both),  # the games the share and the gap are counted over
         "avg_gap": round(mean(abs(g.critics - g.users * 10) for g in both), 1) if both else None,
     }
 

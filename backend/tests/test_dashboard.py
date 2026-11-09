@@ -76,6 +76,7 @@ def test_tiles(market):
     assert tiles["new_7d"] == 7  # all but the one seen ten days ago
     # of the 7 games with both scores only "hit" and "good" are hits (critics >= 75 and players >= 7.5)
     assert tiles["hits_share"] == 29
+    assert (tiles["hits"], tiles["rated_games"]) == (2, 7)  # the base is shown next to the share
     # |critics - players x 10|: 1, 0, 50, 35, 1, 65, 0
     assert tiles["avg_gap"] == pytest.approx(21.7)
 
@@ -163,7 +164,7 @@ def test_rhythm_ignores_future_and_unknown_dates_and_reports_coverage(market):
 
 def test_an_empty_market_gives_empty_blocks(database):
     result = build()
-    assert result["tiles"] == {"games_total": 0, "new_7d": 0, "hits_share": None, "avg_gap": None}
+    assert result["tiles"] == {"games_total": 0, "new_7d": 0, "hits_share": None, "avg_gap": None, "hits": 0, "rated_games": 0}
     assert result["map"] == {"points": [], "attention_median": None}
     assert result["genres"] == []
     assert result["divergences"] == {"critics_love": [], "players_love": []}

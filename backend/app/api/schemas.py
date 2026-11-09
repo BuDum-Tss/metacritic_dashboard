@@ -243,6 +243,8 @@ class TilesOut(BaseModel):
     new_7d: int
     hits_share: int | None  # percent of games with both scores that are hits
     avg_gap: float | None  # mean |Metascore - Userscore x 10| over the same games
+    hits: int  # the hits among them
+    rated_games: int  # games with both scores: the base of the share and of the gap
 
 
 class MapPointOut(BaseModel):
