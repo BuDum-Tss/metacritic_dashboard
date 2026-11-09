@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Game, GameOverallScore, GamePlatform, Genre, game_genres
@@ -39,14 +39,24 @@ def list_games(
     query = select(Game).outerjoin(scores, scores.c.game_id == Game.id)
     if platform:
         query = query.where(scores.c.game_id.is_not(None))
-    if q:
-        escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    # every word of the query is looked for in the title, the developer, the description and the genres
+    title_matches = []
+    for term in (q or "").split():
+        escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{escaped}%"
+        in_title = Game.title.ilike(pattern, escape="\\")
         with_genre = select(game_genres.c.game_id).join(Genre, Genre.id == game_genres.c.genre_id).where(
             Genre.name.ilike(pattern, escape="\\")
         )
-        # the query is looked for in the title and in the genres of the game
-        query = query.where(or_(Game.title.ilike(pattern, escape="\\"), Game.id.in_(with_genre)))
+        query = query.where(
+            or_(
+                in_title,
+                Game.developer.ilike(pattern, escape="\\"),
+                Game.description.ilike(pattern, escape="\\"),
+                Game.id.in_(with_genre),
+            )
+        )
+        title_matches.append(in_title)
 
     total = session.scalar(select(func.count()).select_from(query.subquery()))
 
@@ -61,7 +71,11 @@ def list_games(
     direction = column.asc() if order == "asc" else column.desc()
     if sort in ("metascore", "userscore", "release"):
         direction = direction.nulls_last()  # games without a score or date always go last
-    query = query.order_by(direction, Game.id.desc()).limit(page_size).offset((page - 1) * page_size)
+    ordering = [direction, Game.id.desc()]
+    if title_matches:
+        # the games named like the query come first, so the descriptions that only mention it do not bury them
+        ordering.insert(0, case((and_(*title_matches), 0), else_=1))
+    query = query.order_by(*ordering).limit(page_size).offset((page - 1) * page_size)
     query = query.options(selectinload(Game.genres), selectinload(Game.platforms))
     return GamePage(items=list(session.scalars(query)), total=total)
 

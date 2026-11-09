@@ -266,3 +266,57 @@ def test_game_card_and_similar_games_carry_the_same_score(client):
     assert all("score" in similar for similar in detail["similar"])
     mario = next(s for s in detail["similar"] if s["title"] == "Super Mario")
     assert mario["score"] == {"critics": 88, "users": 8.0}
+
+
+def add(*games: Game) -> None:
+    with session_scope() as session:
+        for item in games:
+            repository.save_game(session, "fake", item, NOW)
+
+
+def test_search_looks_in_the_developer(client):
+    add(game("indie", "Indie Thing", ["Puzzle"], [("pc", 60, 6.0)], developer="Quiet Studio"))
+    assert titles(client.get("/api/games?q=quiet")) == ["Indie Thing"]
+    assert titles(client.get("/api/games?q=STUDIO")) == ["Indie Thing"]
+
+
+def test_search_looks_in_the_description(client):
+    add(game("farm", "Green Acres", [], [("pc", 60, 6.0)], description="A cozy farming simulator with goats"))
+    assert titles(client.get("/api/games?q=farming")) == ["Green Acres"]
+    assert titles(client.get("/api/games?q=GOATS")) == ["Green Acres"]
+
+
+def test_the_words_of_the_query_may_belong_to_different_fields(client):
+    add(game("indie", "Indie Thing", ["Puzzle"], [("pc", 60, 6.0)], developer="Quiet Studio", description="Slide blocks"))
+    assert titles(client.get("/api/games?q=quiet indie")) == ["Indie Thing"]  # developer and title
+    assert titles(client.get("/api/games?q=indie quiet")) == ["Indie Thing"]  # the order does not matter
+    assert titles(client.get("/api/games?q=puzzle quiet blocks")) == ["Indie Thing"]  # genre, developer, description
+    assert client.get("/api/games?q=quiet missing").json()["total"] == 0  # every word has to be found
+
+
+def test_a_game_named_like_the_query_goes_before_the_ones_that_only_mention_it(client):
+    add(game("fan", "Fan Game", [], [("pc", 99, 9.9)], description="A love letter to Super Mario and friends"))
+    # the fan game has the better score, but Super Mario carries the name
+    assert titles(client.get("/api/games?q=mario")) == ["Super Mario", "Fan Game"]
+    assert titles(client.get("/api/games?q=mario&sort=metascore&order=asc")) == ["Super Mario", "Fan Game"]
+
+
+def test_the_chosen_sort_still_rules_inside_the_groups(client):
+    add(
+        game("a", "Quest Alpha", [], [("pc", 50, 5.0)]),
+        game("b", "Quest Beta", [], [("pc", 90, 9.0)]),
+        game("c", "Dull", [], [("pc", 95, 9.5)], description="Not a quest for anyone"),
+    )
+    assert titles(client.get("/api/games?q=quest")) == ["Quest Beta", "Quest Alpha", "Dull"]
+    assert titles(client.get("/api/games?q=quest&sort=title&order=asc")) == ["Quest Alpha", "Quest Beta", "Dull"]
+
+
+def test_a_game_matching_in_several_fields_is_listed_once(client):
+    add(game("dup", "Shooter Hero", ["Shooter"], [("pc", 60, 6.0)], developer="Shooter Works", description="shooter"))
+    assert titles(client.get("/api/games?q=shooter")).count("Shooter Hero") == 1
+    assert client.get("/api/games?q=shooter").json()["total"] == 3  # Doom, Quake and this one
+
+
+def test_an_empty_or_blank_query_finds_everything(client):
+    assert client.get("/api/games?q=").json()["total"] == 6
+    assert client.get("/api/games?q=%20%20").json()["total"] == 6
