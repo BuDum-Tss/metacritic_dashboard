@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -18,7 +19,7 @@ export function ArrowButton({
   return (
     <button
       type="button"
-      aria-label={direction === 'prev' ? 'Назад' : 'Вперёд'}
+      aria-label={direction === 'prev' ? t('common.back') : t('common.forward')}
       onClick={onClick}
       className={cn(
         'absolute top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow transition-colors hover:bg-black/80',

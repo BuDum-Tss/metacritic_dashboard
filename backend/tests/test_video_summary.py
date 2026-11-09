@@ -40,7 +40,7 @@ class FakeLLM:
 
     def __init__(self, moments=None, conclusion="Trouble [with the camera](t=100) all along.", fail_on=None):
         self.moments = moments if moments is not None else [
-            {"t": 100, "type": "problem", "topic": "controls", "note": "Fights the camera", "weight": 2}
+            {"t": 100, "who": "author", "quote": "line 10", "type": "problem", "topic": "controls", "note": "Fights the camera", "weight": 2}
         ]
         self.conclusion = conclusion
         self.fail_on = fail_on
@@ -52,7 +52,7 @@ class FakeLLM:
             raise LLMError("HTTP 500")
         if "bright moments in" in system:
             return "Here you go: " + json.dumps({"moments": self.moments})
-        return self.conclusion
+        return f"<conclusion>{self.conclusion}</conclusion>"
 
 
 @pytest.fixture
@@ -81,28 +81,67 @@ def test_the_transcript_is_cut_into_windows_by_lines():
     assert make_windows([], 100) == []
 
 
+WINDOW = [(0, "Ugh, not again."), (20, "Where do I go now?"), (100, "I love this music"), (110, "Villager: you shall not pass")]
+
+
+def moment(**fields):
+    return {"t": 100, "who": "author", "quote": "love this music", "type": "positive", "topic": "sound", "note": "Likes the music", **fields}
+
+
 def test_a_moment_is_snapped_to_a_real_line_and_checked():
     answer = json.dumps(
         {
             "moments": [
-                {"t": 103, "type": "problem", "topic": "controls", "note": "ok", "weight": 9},
-                {"t": 500, "type": "problem", "topic": "controls", "note": "far from any line"},
-                {"t": 20, "type": "rant", "topic": "controls", "note": "unknown type"},
-                {"t": 20, "type": "positive", "topic": "weather", "note": "unknown topic"},
-                {"t": 20, "type": "positive", "topic": "story", "note": ""},
-                {"t": "bad", "type": "positive", "topic": "story", "note": "no time"},
+                moment(t=103, weight=9),
+                moment(t=500, note="far from any line"),
+                moment(type="rant", note="unknown type"),
+                moment(topic="weather", t=20, quote="where do i go now", note="unknown topic"),
+                moment(note=""),
+                moment(t="bad", note="no time"),
                 "junk",
             ]
         }
     )
-    moments = parse_moments(answer, [0, 20, 100, 110], limit=10)
-    assert [(m.start, m.type, m.topic, m.weight) for m in moments] == [(100, "problem", "controls", 3), (20, "positive", "other", 1)]
+    moments = parse_moments(answer, WINDOW, limit=10)
+    assert [(m.start, m.type, m.topic, m.weight, m.quote) for m in moments] == [
+        (100, "positive", "sound", 3, "love this music"),
+        (20, "positive", "other", 1, "where do i go now"),
+    ]
+
+
+def test_only_the_words_of_the_author_make_a_moment():
+    answer = json.dumps(
+        {
+            "moments": [
+                moment(),
+                moment(who="game", t=110, quote="you shall not pass", note="A villager blocks the way"),
+                moment(who="unclear", t=110, quote="you shall not pass", note="Unclear"),
+                {k: v for k, v in moment(t=110, quote="you shall not pass").items() if k != "who"},
+            ]
+        }
+    )
+    assert [m.start for m in parse_moments(answer, WINDOW, 10)] == [100]
+
+
+def test_a_moment_needs_a_quote_that_is_really_in_the_window():
+    answer = json.dumps(
+        {
+            "moments": [
+                moment(quote="LOVE this MUSIC!!"),  # case and punctuation do not matter
+                moment(quote="I hate this level"),  # nobody said it
+                moment(quote=""),
+                {k: v for k, v in moment().items() if k != "quote"},
+            ]
+        }
+    )
+    moments = parse_moments(answer, WINDOW, 10)
+    assert len(moments) == 1 and moments[0].quote == "LOVE this MUSIC!!"
 
 
 def test_a_bad_answer_is_an_error_and_an_empty_one_is_fine():
     with pytest.raises(VideoSummaryError):
-        parse_moments("no json here", [0], 5)
-    assert parse_moments('{"moments": []}', [0], 5) == []
+        parse_moments("no json here", WINDOW, 5)
+    assert parse_moments('{"moments": []}', WINDOW, 5) == []
 
 
 def test_close_moments_of_one_kind_are_merged_and_the_rest_cut_by_weight():
@@ -141,10 +180,10 @@ def test_the_conclusion_is_built_from_the_moments_with_links(client):
     status, text, moments, error, model = row()
     assert (status, error, model) == ("done", None, "fake-model")
     assert text == "Trouble [with the camera](t=100) all along."
-    assert moments == [{"start": 100, "type": "problem", "topic": "controls", "note": "Fights the camera"}]
+    assert moments == [{"start": 100, "type": "problem", "topic": "controls", "note": "Fights the camera", "quote": "line 10"}]
     assert len(llm.calls) == 2  # one window, then the conclusion
     assert "[100] line 10" in llm.calls[0][1]
-    assert "[100] problem/controls: Fights the camera" in llm.calls[1][1]
+    assert '[100] problem/controls: Fights the camera (the author: "line 10")' in llm.calls[1][1]
     assert not service.is_running(1, "v1")
 
 
@@ -194,7 +233,7 @@ def test_a_request_builds_the_summary(client, monkeypatch):
     body = client.get("/api/games/1/summaries/v1").json()
     assert body["status"] == "done" and body["running"] is False and body["llm_enabled"] is True
     assert body["text"] == "Trouble [with the camera](t=100) all along."
-    assert body["moments"] == [{"start": 100, "type": "problem", "topic": "controls", "note": "Fights the camera"}]
+    assert body["moments"] == [{"start": 100, "type": "problem", "topic": "controls", "note": "Fights the camera", "quote": "line 10"}]
     assert body["model"] == "fake-model" and body["updated_at"].endswith("Z") or "+" in body["updated_at"]
 
 
@@ -218,7 +257,7 @@ def test_a_restart_cuts_short_a_running_summary(client):
 def add_transcript(video="v2", done=True):
     with session_scope() as session:
         row = transcript_repository.get_transcript(session, 1, video)
-        transcript_repository.save_done(session, row.id, "captions", "en", [Segment(100.0, "line"), Segment(110.0, "more")], 20, NOW)
+        transcript_repository.save_done(session, row.id, "captions", "en", [Segment(100.0, "line 10"), Segment(110.0, "more")], 20, NOW)
 
 
 def statuses():
@@ -263,7 +302,7 @@ def test_the_transcripts_request_builds_the_summaries_too(client, monkeypatch):
     monkeypatch.setattr(service, "make_llm_client", lambda: llm)
     transcripts_service._running.clear()
     transcripts_service.begin(1, "letsplay")
-    transcripts_service.run_transcripts(1, "letsplay", lambda video_id: ([Segment(100.0, "hi")], "en"), None, None)
+    transcripts_service.run_transcripts(1, "letsplay", lambda video_id: ([Segment(100.0, "line 10")], "en"), None, None)
     assert statuses() == {"v1": "done", "v2": "done"}  # the transcript of v2 was made by the same request
 
 
@@ -336,4 +375,118 @@ def test_the_migration_requeues_the_summaries_of_the_first_version(client):
 def test_new_summaries_carry_the_current_prompt_version(client):
     run(FakeLLM())
     with session_scope() as session:
-        assert video_summary_repository.get_summary(session, 1, "v1").prompt_version == service.PROMPT_VERSION == 2
+        assert video_summary_repository.get_summary(session, 1, "v1").prompt_version == service.PROMPT_VERSION
+
+
+# ------------------------------------------------------------------ a model that chats instead of writing
+class ChattyLLM(FakeLLM):
+    """Answers the conclusion with chat for the first `chat` times."""
+
+    def __init__(self, chat, **kwargs):
+        super().__init__(**kwargs)
+        self.chat = chat
+        self.asked = 0
+
+    def complete(self, system, user):
+        if "bright moments in" not in system:
+            self.asked += 1
+            if self.asked <= self.chat:
+                self.calls.append((system, user))
+                return "I am ready to write the conclusion about this let's play. Let me craft that for you."
+        return super().complete(system, user)
+
+
+def test_chat_instead_of_the_conclusion_is_asked_again(client):
+    llm = ChattyLLM(chat=1)
+    run(llm)
+    assert row()[0] == "done" and row()[1] == "Trouble [with the camera](t=100) all along."
+    assert llm.asked == 2
+
+
+def test_a_model_that_keeps_chatting_fails_the_job_with_a_reason(client):
+    run(ChattyLLM(chat=5))
+    status, text, _, error, _ = row()
+    assert status == "failed" and text is None and "no conclusion" in error
+
+
+def test_a_conclusion_without_links_is_not_accepted(client):
+    run(FakeLLM(conclusion="Plain words, no links at all."))
+    assert row()[0] == "failed" and "no links" in row()[3]
+
+
+def test_text_around_the_tags_is_dropped(client):
+    run(FakeLLM(conclusion="x"))
+    llm = FakeLLM()
+    llm.complete = lambda system, user: (
+        json.dumps({"moments": llm.moments}) if "bright moments in" in system
+        else "Sure! <conclusion>It went [badly](t=100).</conclusion> Hope it helps."
+    )
+    run(llm)
+    assert row()[1] == "It went [badly](t=100)."
+
+
+def test_a_bad_list_of_moments_is_asked_again(client):
+    answers = iter(["Sure, here are the moments", None])
+
+    class Once(FakeLLM):
+        def complete(self, system, user):
+            if "bright moments in" in system:
+                answer = next(answers)
+                if answer:
+                    return answer
+            return super().complete(system, user)
+
+    run(Once())
+    assert row()[0] == "done"
+
+
+def test_summaries_of_an_older_prompt_are_built_again_after_a_start(client):
+    run(FakeLLM(conclusion="Old [text](t=100)."))
+    with session_scope() as session:
+        video_summary_repository.get_summary(session, 1, "v1").prompt_version = service.PROMPT_VERSION - 1
+    service.run_pending(FakeLLM(conclusion="New [text](t=100)."))
+    status, text, *_ = row()
+    assert (status, text) == ("done", "New [text](t=100).")
+    with session_scope() as session:
+        assert video_summary_repository.get_summary(session, 1, "v1").prompt_version == service.PROMPT_VERSION
+
+
+def test_summaries_of_the_current_prompt_are_left_alone(client):
+    llm = FakeLLM()
+    run(llm)
+    calls = len(llm.calls)
+    service.run_pending(llm)
+    assert len(llm.calls) == calls
+
+
+def test_the_prompt_tells_the_model_the_game_is_not_the_author(client):
+    llm = FakeLLM()
+    run(llm)
+    system = llm.calls[0][0]
+    assert "voices of game characters" in system and "NOT the opinion" in system
+    assert '"who"' in system and "exact quote" in system
+
+
+def test_the_migration_drops_the_commentary_free_letsplay_with_its_transcripts_and_summaries(client):
+    import importlib.util
+    from pathlib import Path
+
+    from app.db import video_repository
+    from app.videos.finder import VideoResult
+
+    path = Path(__file__).parents[1] / "app/db/migrations/versions/0017_drop_commentary_free_letsplays.py"
+    spec = importlib.util.spec_from_file_location("migration_0017", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    with session_scope() as session:
+        video_repository.save_video(session, 1, "letsplay", VideoResult("v1", "Heir Game Movie | All Cutscenes", "Ann", 10), NOW, None)
+        video_repository.save_video(session, 1, "review", VideoResult("rev", "Heir Review", "Bob", 10), NOW, None)
+        video_summary_repository.mark_running(session, 1, "v1", NOW)
+    with db_session.SessionLocal.kw["bind"].begin() as connection:
+        assert module.drop_commentary_free(connection) == 1
+        assert module.drop_commentary_free(connection) == 0
+    with session_scope() as session:
+        assert [v.kind for v in video_repository.list_videos(session, 1)] == ["review"]  # the review stays
+        assert video_summary_repository.get_summary(session, 1, "v1") is None
+        assert transcript_repository.list_transcripts(session, 1, "letsplay") == []

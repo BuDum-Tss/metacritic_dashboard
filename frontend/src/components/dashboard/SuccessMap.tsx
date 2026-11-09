@@ -1,3 +1,4 @@
+import { locale, t } from '@/i18n'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -21,8 +22,8 @@ import { compact, decimal } from '@/lib/format'
 type Metric = 'critics' | 'users'
 
 const METRICS = {
-  critics: { label: 'Metascore критиков', threshold: 75, max: 100, ticks: [0, 25, 50, 75, 100] },
-  users: { label: 'Userscore игроков', threshold: 7.5, max: 10, ticks: [0, 2.5, 5, 7.5, 10] },
+  critics: { get label() { return t('success.criticsLabel') }, threshold: 75, max: 100, ticks: [0, 25, 50, 75, 100] },
+  users: { get label() { return t('success.usersLabel') }, threshold: 7.5, max: 10, ticks: [0, 2.5, 5, 7.5, 10] },
 }
 
 interface Dot {
@@ -75,7 +76,7 @@ function MapTooltip({ active, payload }: TipProps) {
         Metascore <b>{dot.critics ?? '—'}</b> · Userscore <b>{decimal(dot.users)}</b>
       </p>
       <p>
-        Оценок игроков <b>{dot.x.toLocaleString('ru-RU')}</b>
+        {t('success.colRatings')} <b>{dot.x.toLocaleString(locale())}</b>
       </p>
     </div>
   )
@@ -110,21 +111,24 @@ export function SuccessMap({ points, attentionMedian }: { points: MapPoint[]; at
 
   return (
     <ChartCard
-      title="Карта успеха"
+      title={t('success.title')}
       info={
         <div className="space-y-2">
-          <p>Каждая точка — игра: по горизонтали внимание (число оценок игроков), по вертикали оценка. Клик по точке открывает игру.</p>
+          <p>{t('success.info')}</p>
           <p>
-            Линии: оценка {decimal(threshold, Number.isInteger(threshold) ? 0 : 1)} ({label}) и медианное внимание
-            {median !== null ? `, ${median.toLocaleString('ru-RU')} оценок` : ''}.
+            {t('success.lines', {
+              threshold: decimal(threshold, Number.isInteger(threshold) ? 0 : 1),
+              label,
+              median: median !== null ? t('success.median', { n: median.toLocaleString(locale()) }) : '',
+            })}
           </p>
         </div>
       }
       action={
-        <div className="flex gap-1" role="group" aria-label="Оценка на вертикальной оси">
+        <div className="flex gap-1" role="group" aria-label={t('success.axis')}>
           {(['critics', 'users'] as const).map((key) => (
             <Button key={key} size="sm" variant={metric === key ? 'default' : 'outline'} onClick={() => setMetric(key)}>
-              {key === 'critics' ? 'Критики' : 'Игроки'}
+              {key === 'critics' ? t('success.critics') : t('success.users')}
             </Button>
           ))}
         </div>
@@ -132,7 +136,7 @@ export function SuccessMap({ points, attentionMedian }: { points: MapPoint[]; at
     >
       {dots.length < 3 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          Пока слишком мало игр с оценками и числом оценок игроков, чтобы строить карту.
+          {t('success.empty')}
         </p>
       ) : (
         <>
@@ -151,7 +155,7 @@ export function SuccessMap({ points, attentionMedian }: { points: MapPoint[]; at
                   axisLine={{ stroke: 'var(--viz-axis)' }}
                   tickLine={false}
                   allowDataOverflow
-                  label={{ value: 'Число оценок игроков (логарифмическая шкала)', position: 'insideBottom', offset: -14, ...axisText }}
+                  label={{ value: t('success.xLabel'), position: 'insideBottom', offset: -14, ...axisText }}
                 />
                 <YAxis
                   type="number"
@@ -166,10 +170,10 @@ export function SuccessMap({ points, attentionMedian }: { points: MapPoint[]; at
                 />
                 {median !== null && (
                   <>
-                    <ReferenceArea x1={1} x2={median} y1={threshold} y2={max} fill="none" stroke="none" label={zone('Скрытые жемчужины', 'insideTopLeft')} />
-                    <ReferenceArea x1={median} x2={xMax} y1={threshold} y2={max} fill="none" stroke="none" label={zone('Хиты', 'insideTopRight')} />
-                    <ReferenceArea x1={1} x2={median} y1={0} y2={threshold} fill="none" stroke="none" label={zone('Провалы', 'insideBottomLeft')} />
-                    <ReferenceArea x1={median} x2={xMax} y1={0} y2={threshold} fill="none" stroke="none" label={zone('Громкие и спорные', 'insideBottomRight')} />
+                    <ReferenceArea x1={1} x2={median} y1={threshold} y2={max} fill="none" stroke="none" label={zone(t('success.gems'), 'insideTopLeft')} />
+                    <ReferenceArea x1={median} x2={xMax} y1={threshold} y2={max} fill="none" stroke="none" label={zone(t('success.hits'), 'insideTopRight')} />
+                    <ReferenceArea x1={1} x2={median} y1={0} y2={threshold} fill="none" stroke="none" label={zone(t('success.flops'), 'insideBottomLeft')} />
+                    <ReferenceArea x1={median} x2={xMax} y1={0} y2={threshold} fill="none" stroke="none" label={zone(t('success.loud'), 'insideBottomRight')} />
                     <ReferenceLine x={median} stroke="var(--viz-axis)" />
                   </>
                 )}
@@ -187,14 +191,14 @@ export function SuccessMap({ points, attentionMedian }: { points: MapPoint[]; at
           </div>
           <DataTable
             columns={[
-              { key: 'title', label: 'Игра' },
+              { key: 'title', label: t('success.colGame') },
               { key: 'critics', label: 'Metascore', align: 'right' },
               { key: 'users', label: 'Userscore', align: 'right' },
-              { key: 'attention', label: 'Оценок игроков', align: 'right' },
+              { key: 'attention', label: t('success.colRatings'), align: 'right' },
             ]}
             rows={[...dots]
               .sort((a, b) => b.x - a.x)
-              .map((d) => ({ title: d.title, critics: d.critics ?? '—', users: decimal(d.users), attention: d.x.toLocaleString('ru-RU') }))}
+              .map((d) => ({ title: d.title, critics: d.critics ?? '—', users: decimal(d.users), attention: d.x.toLocaleString(locale()) }))}
           />
         </>
       )}

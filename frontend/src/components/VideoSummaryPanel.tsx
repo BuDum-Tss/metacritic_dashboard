@@ -1,3 +1,4 @@
+import { hasKey, t, type Key } from '@/i18n'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { LoaderCircle, ThumbsDown, ThumbsUp } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -8,18 +9,8 @@ import { Button } from '@/components/ui/button'
 import { formatTimecode } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-const topicLabels: Record<string, string> = {
-  controls: 'управление',
-  navigation: 'ориентирование',
-  event: 'событие',
-  mechanics: 'механики',
-  story: 'сюжет',
-  visuals: 'графика',
-  sound: 'звук',
-  performance: 'оптимизация',
-  overall: 'в целом',
-  other: 'другое',
-}
+// the name of a topic of a moment; an unknown topic is shown as it is
+const topicLabel = (topic: string) => (hasKey(`topic.${topic}`) ? t(`topic.${topic}` as Key) : topic)
 
 const LINK = /\[([^\]\n]+)\]\(t=(\d+)\)/g
 
@@ -41,7 +32,7 @@ export function LinkedText({ text, onSeek }: { text: string; onSeek: (seconds: n
                 key={`${index}-${match.index}`}
                 type="button"
                 onClick={() => onSeek(seconds)}
-                title={`Перемотать на ${formatTimecode(seconds)}`}
+                title={t('video.seekTo', { time: formatTimecode(seconds) })}
                 className="text-primary underline decoration-dotted underline-offset-2 hover:decoration-solid"
               >
                 {match[1]}
@@ -63,19 +54,20 @@ function MomentRow({ moment, onSeek }: { moment: Moment; onSeek: (seconds: numbe
     <li className="flex items-start gap-2 px-3 py-1.5">
       <Icon
         className={cn('mt-0.5 size-4 shrink-0', problem ? 'text-destructive' : 'text-emerald-600')}
-        aria-label={problem ? 'Проблема' : 'Положительная реакция'}
+        aria-label={problem ? t('summary.problem') : t('summary.positive')}
       />
       <button
         type="button"
         onClick={() => onSeek(moment.start)}
-        title="Перемотать видео сюда"
+        title={t('video.seekHere')}
         className="shrink-0 font-mono text-xs tabular-nums text-primary underline-offset-2 hover:underline"
       >
         {formatTimecode(moment.start)}
       </button>
       <span className="min-w-0">
-        <span className="mr-1 text-xs text-muted-foreground">{topicLabels[moment.topic] ?? moment.topic}:</span>
+        <span className="mr-1 text-xs text-muted-foreground">{topicLabel(moment.topic)}:</span>
         {moment.note}
+        {moment.quote && <span className="mt-0.5 block text-xs italic text-muted-foreground">«{moment.quote}»</span>}
       </span>
     </li>
   )
@@ -104,7 +96,7 @@ export function VideoSummaryPanel({
   })
 
   const data = summary.data
-  if (!data) return <p className="p-4 text-sm text-muted-foreground">Загружаю…</p>
+  if (!data) return <p className="p-4 text-sm text-muted-foreground">{t('summary.loading')}</p>
   const running = data.running || data.status === 'running' || data.status === 'pending'
 
   return (
@@ -113,26 +105,26 @@ export function VideoSummaryPanel({
       {!running && (!data.text || data.status === 'failed') && (
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" disabled={start.isPending || !data.llm_enabled} onClick={() => start.mutate()}>
-            Составить резюме
+            {t('summary.build')}
           </Button>
-          {!data.llm_enabled && <span className="text-xs text-muted-foreground">Модель не настроена (нет LLM_API_KEY).</span>}
+          {!data.llm_enabled && <span className="text-xs text-muted-foreground">{t('summary.noModel')}</span>}
         </div>
       )}
       {running && (
         <div className="flex min-h-40 flex-1 flex-col items-center justify-center gap-3 text-sm text-muted-foreground" role="status">
           <LoaderCircle className="size-8 animate-spin text-primary" aria-hidden />
-          Составляю резюме…
+          {t('summary.building')}
         </div>
       )}
       {start.isError && <p className="text-sm text-destructive">{start.error.message}</p>}
-      {data.status === 'failed' && data.error && <p className="text-sm text-destructive">Не получилось: {data.error}</p>}
+      {data.status === 'failed' && data.error && <p className="text-sm text-destructive">{t('video.failed', { error: data.error })}</p>}
 
       {data.text && !running ? (
         <>
           <LinkedText text={data.text} onSeek={onSeek} />
           {data.moments.length > 0 && (
             <details className="rounded-lg border">
-              <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Яркие моменты ({data.moments.length})</summary>
+              <summary className="cursor-pointer px-3 py-2 text-sm font-medium">{t('summary.moments', { n: data.moments.length })}</summary>
               <ul className="divide-y border-t text-sm">
                 {data.moments.map((moment) => (
                   <MomentRow key={`${moment.start}-${moment.note}`} moment={moment} onSeek={onSeek} />
@@ -145,8 +137,7 @@ export function VideoSummaryPanel({
         !running &&
         data.status !== 'failed' && (
           <p className="text-sm text-muted-foreground">
-            Резюме ещё нет. Модель найдёт в транскрипте места, где автор видео столкнулся с проблемой или отреагировал
-            положительно, и напишет по ним заключение со ссылками на таймкоды.
+            {t('summary.empty')}
           </p>
         )
       )}

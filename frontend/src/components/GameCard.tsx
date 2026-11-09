@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { Link } from 'react-router-dom'
 
 import { GameScore } from '@/components/GameScore'
@@ -20,7 +21,7 @@ export function GameCard({ game }: { game: GameShort }) {
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Нет обложки
+              {t('common.noCover')}
             </div>
           )}
         </div>

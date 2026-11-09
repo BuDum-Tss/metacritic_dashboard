@@ -20,6 +20,17 @@ KIND_WORDS = {
     REVIEW: re.compile(r"review"),
 }
 
+# a let's play without the voice of the player has nothing to tell and no opinions to summarise: "No Commentary",
+# "without commentary", "commentary free", "no talking", "[NC]"; a game movie (the cutscenes of a game
+# strung together, "Game Movie", "Full Movie", "All Cutscenes") has the voices of the characters only
+NO_COMMENTARY = re.compile(
+    r"\bno[\s-]*(?:commentary|commentry|comments?|talking|voice(?:over)?|narration)\b"
+    r"|\bwithout[\s-]*(?:commentary|talking|voice(?:over)?|narration)\b"
+    r"|\bgame[\s-]*movie\b|\bfull[\s-]*(?:game[\s-]*)?movie\b|\ball[\s-]*(?:the[\s-]*)?(?:cutscenes|cinematics)\b"
+    r"|\b(?:cutscenes|cinematics)[\s-]*only\b|\bgamemovie\b"
+    r"|\bcommentary[\s-]*free\b|\bsilent (?:let'?s play|playthrough|walkthrough)\b|[\[(]\s*nc\s*[\])]"
+)
+
 # "Part 1", "Episode 3", "Ep. 2", "Pt 4", "#5"
 SERIES = re.compile(r"\b(?:part|episode|ep|pt)\.?\s*#?\s*\d+|#\s*\d+")
 
@@ -94,6 +105,7 @@ def find_video(api: VideoApi, game_title: str, kind: str, release_date: date | N
         and _published_after(video, start)
         and mentions_game(video.title, variants)
         and KIND_WORDS[kind].search(_plain(video.title))
+        and not (kind == LETSPLAY and NO_COMMENTARY.search(_plain(video.title)))
     ]
     if not fitting:
         return None

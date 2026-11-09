@@ -1,3 +1,5 @@
+import { locale, t, tn } from '@/i18n'
+
 export type Tone = 'good' | 'mixed' | 'bad' | 'none'
 
 // Metacritic colours: green / yellow / red
@@ -23,7 +25,7 @@ export function formatDateTime(iso: string | null): string {
 export function formatDuration(from: string, to: string | null): string {
   const end = to ? new Date(to).getTime() : Date.now()
   const seconds = Math.max(0, Math.round((end - new Date(from).getTime()) / 1000))
-  return seconds < 60 ? `${seconds} с` : `${Math.floor(seconds / 60)} мин ${seconds % 60} с`
+  return seconds < 60 ? t('duration.seconds', { n: seconds }) : t('duration.minutes', { m: Math.floor(seconds / 60), s: seconds % 60 })
 }
 
 export type ReviewTone = 'positive' | 'mixed' | 'negative'
@@ -34,39 +36,33 @@ export function reviewTone(kind: 'critics' | 'users', score: number): ReviewTone
   return tone === 'good' ? 'positive' : tone === 'mixed' ? 'mixed' : 'negative'
 }
 
-export function plural(n: number, forms: [string, string, string]): string {
-  const mod100 = n % 100
-  const mod10 = n % 10
-  if (mod100 >= 11 && mod100 <= 14) return forms[2]
-  if (mod10 === 1) return forms[0]
-  if (mod10 >= 2 && mod10 <= 4) return forms[1]
-  return forms[2]
-}
-
-const COUNT_FORMS: Record<'critics' | 'users', [string, string, string]> = {
-  critics: ['отзыв критика', 'отзыва критиков', 'отзывов критиков'],
-  users: ['оценка игроков', 'оценки игроков', 'оценок игроков'],
-}
-
 export function countLabel(kind: 'critics' | 'users', count: number | null): string {
-  return count === null ? 'нет данных' : `${count} ${plural(count, COUNT_FORMS[kind])}`
+  return count === null ? t('common.noData') : tn(kind === 'critics' ? 'count.critics' : 'count.users', count)
 }
 
 export function formatDate(iso: string): string {
   // a plain date (2026-11-05): read it as a calendar day, whatever the time zone
   const [year, month, day] = iso.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+  return new Date(year, month - 1, day).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 export function compact(n: number): string {
-  return new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+  return new Intl.NumberFormat(locale(), { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 }
 
 export function decimal(n: number | null, digits = 1): string {
-  return n === null ? '—' : n.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  return n === null ? '—' : n.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
-export const videoKindLabels: Record<'letsplay' | 'review', string> = { letsplay: 'Летсплей', review: 'Обзор' }
+// the names of the kinds of video in the current language
+export const videoKindLabels: Record<'letsplay' | 'review', string> = {
+  get letsplay() {
+    return t('video.letsplay')
+  },
+  get review() {
+    return t('video.review')
+  },
+}
 
 // seconds from the start of a video as 4:07 or 1:02:09
 export function formatTimecode(seconds: number): string {

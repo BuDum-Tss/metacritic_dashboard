@@ -1,3 +1,4 @@
+import { t, type Key } from '@/i18n'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, CircleCheck, CircleDashed, Clock, LoaderCircle } from 'lucide-react'
 import { useRef, useState } from 'react'
@@ -13,21 +14,15 @@ const WORKING = 'working'
 
 type Tab = 'transcript' | 'summary'
 
-const tabs: { value: Tab; label: string }[] = [
-  { value: 'transcript', label: 'Транскрипт' },
-  { value: 'summary', label: 'Резюме' },
+const tabs: { value: Tab; label: Key }[] = [
+  { value: 'transcript', label: 'video.transcript' },
+  { value: 'summary', label: 'video.summary' },
 ]
 
 // 'new': the video was never asked for
 type PartStatus = TranscriptStatus | 'new'
 
-const statusLabels: Record<PartStatus, string> = {
-  new: 'не анализировалась',
-  pending: 'в очереди',
-  running: 'обрабатывается',
-  done: 'проанализирована',
-  failed: 'ошибка',
-}
+const statusLabel = (status: PartStatus) => t(`video.part.${status}`)
 
 // The state of a series: the transcript, then the summary (when the model is configured) must be done.
 function partStatus(item: TranscriptVideo, llmEnabled: boolean, running: boolean): PartStatus {
@@ -122,14 +117,14 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
     parts.length > 0
       ? parts.map((item) => ({
           video_id: item.video_id,
-          label: kind === 'letsplay' ? `Серия ${item.position + 1}` : videoKindLabels[kind],
+          label: kind === 'letsplay' ? t('video.series', { n: item.position + 1 }) : videoKindLabels[kind],
           title: item.title ?? item.video_id,
           status: partStatus(item, llmEnabled, running),
         }))
       : [
           {
             video_id: shown.video_id,
-            label: kind === 'letsplay' ? 'Серия 1' : videoKindLabels[kind],
+            label: kind === 'letsplay' ? t('video.series', { n: 1 }) : videoKindLabels[kind],
             title: shown.title ?? shown.video_id,
             status: 'new',
           },
@@ -142,7 +137,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
         key={videoId}
         ref={frame}
         src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&enablejsapi=1`}
-        title={`${videoKindLabels[kind]}: ${part?.title ?? shown.title ?? 'видео на YouTube'}`}
+        title={`${videoKindLabels[kind]}: ${part?.title ?? shown.title ?? t('media.youtube')}`}
         allow="accelerometer; encrypted-media; picture-in-picture; fullscreen"
         allowFullScreen
         className="h-full w-full"
@@ -152,14 +147,14 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
 
   let note: string | null = null
   if (!analysed) {
-    if (part?.status === 'failed') note = `Не получилось: ${part.error ?? 'неизвестная ошибка'}`
+    if (part?.status === 'failed') note = t('video.failed', { error: part.error ?? t('video.unknownError') })
     else if (part?.status === 'running' || part?.status === 'pending' || running) note = WORKING
   }
 
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Видео</h2>
+        <h2 className="text-xl font-semibold">{t('video.title')}</h2>
         {videos.length > 1 && (
           <div className="flex gap-1">
             {videos.map((video) => (
@@ -177,14 +172,14 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
       </div>
 
       <div className="flex items-start justify-between gap-3 border-b pb-3">
-        <div className="flex min-w-0 gap-1 overflow-x-auto pb-1" role="tablist" aria-label="Серии">
+        <div className="flex min-w-0 gap-1 overflow-x-auto pb-1" role="tablist" aria-label={t('video.seriesAria')}>
           {chips.map((chip) => (
             <button
               key={chip.video_id}
               type="button"
               role="tab"
               aria-selected={chip.video_id === videoId}
-              title={`${chip.title} — ${statusLabels[chip.status]}`}
+              title={`${chip.title} — ${statusLabel(chip.status)}`}
               onClick={() => setChosen(chip.video_id)}
               className={cn(
                 'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-sm',
@@ -197,7 +192,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
           ))}
         </div>
         <Button size="sm" className="shrink-0" disabled={running || allDone || start.isPending} onClick={() => start.mutate()}>
-          {running ? 'Идёт анализ…' : allDone ? 'Всё проанализировано' : 'Проанализировать все'}
+          {running ? t('video.working') : allDone ? t('video.allDone') : t('video.analyseAll')}
         </Button>
       </div>
       {start.isError && <p className="text-sm text-destructive">{start.error.message}</p>}
@@ -208,7 +203,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
           <div className="md:order-2">{player}</div>
 
           <div className="flex min-h-72 flex-col gap-2 md:order-1 md:min-h-0">
-            <div className="flex gap-4 border-b text-sm" role="tablist" aria-label="Раздел">
+            <div className="flex gap-4 border-b text-sm" role="tablist" aria-label={t('video.sectionAria')}>
               {tabs.map((item) => (
                 <button
                   key={item.value}
@@ -223,7 +218,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
                       : 'border-transparent text-muted-foreground hover:text-foreground',
                   )}
                 >
-                  {item.label}
+                  {t(item.label)}
                 </button>
               ))}
             </div>
@@ -234,7 +229,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
               ) : segments && segments.length > 0 ? (
                 <>
                   <p className="border-b px-3 py-1.5 text-xs text-muted-foreground">
-                    {part?.source === 'captions' ? 'Субтитры YouTube' : 'Распознавание речи'}
+                    {part?.source === 'captions' ? t('video.captions') : t('video.stt')}
                   </p>
                   <ul className="divide-y text-sm">
                     {segments.map((segment, index) => (
@@ -242,7 +237,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
                         <button
                           type="button"
                           onClick={() => seek(segment.start)}
-                          title="Перемотать видео сюда"
+                          title={t('video.seekHere')}
                           className="shrink-0 font-mono text-xs tabular-nums text-primary underline-offset-2 hover:underline"
                         >
                           {formatTimecode(segment.start)}
@@ -258,7 +253,7 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
                   </ul>
                 </>
               ) : (
-                <Loading text="Загружаю текст…" className="h-full min-h-40" />
+                <Loading text={t('video.loadingText')} className="h-full min-h-40" />
               )}
             </div>
             </div>
@@ -268,10 +263,10 @@ export function VideoSection({ gameId, videos }: { gameId: number; videos: Video
         <div className="mx-auto max-w-3xl space-y-2">
           {player}
           {note === WORKING ? (
-            <Loading text="Идёт расшифровка…" className="py-4" />
+            <Loading text={t('video.transcribing')} className="py-4" />
           ) : (
             <p className={cn('text-center text-sm', part?.status === 'failed' ? 'text-destructive' : 'text-muted-foreground')}>
-              {note ?? 'Видео не анализировалось: нажмите «Проанализировать все», чтобы получить транскрипт и резюме.'}
+              {note ?? t('video.hint')}
             </p>
           )}
         </div>

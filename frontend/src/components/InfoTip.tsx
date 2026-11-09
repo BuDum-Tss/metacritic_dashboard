@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { Popover } from '@base-ui/react/popover'
 import { Info } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
@@ -5,7 +6,7 @@ import { useRef, useState, type ReactNode } from 'react'
 // An explanation behind an "i": with a mouse it shows while the pointer is on the icon and goes away
 // when the pointer leaves (a click does not pin it); with the keyboard it follows the focus;
 // on a touch screen a tap opens it and a tap elsewhere closes it.
-export function InfoTip({ children, label = 'Пояснение' }: { children: ReactNode; label?: string }) {
+export function InfoTip({ children, label = t('common.explanation') }: { children: ReactNode; label?: string }) {
   const [open, setOpen] = useState(false)
   const mouse = useRef(false)
 

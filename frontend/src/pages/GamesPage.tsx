@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { useEffect, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
@@ -13,17 +14,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 const PAGE_SIZE = 24
 const ALL = 'all'
 
-const sortItems = [
+const sortItems = () => [
   { value: 'metascore', label: 'Metascore' },
   { value: 'userscore', label: 'Userscore' },
-  { value: 'release', label: 'Дата релиза' },
-  { value: 'title', label: 'Название' },
-  { value: 'updated', label: 'Дата добавления' },
+  { value: 'release', label: t('games.sortRelease') },
+  { value: 'title', label: t('games.sortTitle') },
+  { value: 'updated', label: t('games.sortUpdated') },
 ]
 
-const orderItems = [
-  { value: 'desc', label: 'По убыванию' },
-  { value: 'asc', label: 'По возрастанию' },
+const orderItems = () => [
+  { value: 'desc', label: t('games.desc') },
+  { value: 'asc', label: t('games.asc') },
 ]
 
 export function GamesPage() {
@@ -61,7 +62,7 @@ export function GamesPage() {
   })
 
   const platformItems = [
-    { value: ALL, label: 'Все платформы' },
+    { value: ALL, label: t('games.allPlatforms') },
     ...(platforms.data ?? []).map((p) => ({ value: p.platform, label: `${p.name} (${p.games})` })),
   ]
   const totalPages = games.data ? Math.max(1, Math.ceil(games.data.total / PAGE_SIZE)) : 1
@@ -71,7 +72,7 @@ export function GamesPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-56 flex-1">
           <Input
-            placeholder="Поиск по названию, жанру, разработчику, описанию"
+            placeholder={t('games.search')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -92,24 +93,24 @@ export function GamesPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select items={sortItems} value={sort} onValueChange={(value) => update({ sort: value, page: null })}>
+        <Select items={sortItems()} value={sort} onValueChange={(value) => update({ sort: value, page: null })}>
           <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {sortItems.map((item) => (
+            {sortItems().map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select items={orderItems} value={order} onValueChange={(value) => update({ order: value, page: null })}>
+        <Select items={orderItems()} value={order} onValueChange={(value) => update({ order: value, page: null })}>
           <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {orderItems.map((item) => (
+            {orderItems().map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}
               </SelectItem>
@@ -119,7 +120,7 @@ export function GamesPage() {
       </div>
 
       {games.isError && (
-        <p className="text-destructive">Не удалось загрузить игры: {games.error.message}</p>
+        <p className="text-destructive">{t('games.loadError', { message: games.error.message })}</p>
       )}
 
       {games.isPending ? (
@@ -130,7 +131,7 @@ export function GamesPage() {
         </div>
       ) : games.data && games.data.items.length > 0 ? (
         <>
-          <p className="text-sm text-muted-foreground">Найдено игр: {games.data.total}</p>
+          <p className="text-sm text-muted-foreground">{t('games.found', { n: games.data.total })}</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {games.data.items.map((game) => (
               <GameCard key={game.id} game={game} />
@@ -138,19 +139,19 @@ export function GamesPage() {
           </div>
         </>
       ) : (
-        !games.isError && <p className="py-12 text-center text-muted-foreground">Игры не найдены</p>
+        !games.isError && <p className="py-12 text-center text-muted-foreground">{t('games.none')}</p>
       )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-3">
           <Button variant="outline" disabled={page <= 1} onClick={() => update({ page: String(page - 1) })}>
-            Назад
+            {t('common.back')}
           </Button>
           <span className="text-sm text-muted-foreground">
-            Страница {page} из {totalPages}
+            {t('games.page', { page, total: totalPages })}
           </span>
           <Button variant="outline" disabled={page >= totalPages} onClick={() => update({ page: String(page + 1) })}>
-            Вперёд
+            {t('common.forward')}
           </Button>
         </div>
       )}

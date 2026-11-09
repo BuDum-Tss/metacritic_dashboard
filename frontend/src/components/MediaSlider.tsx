@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { Play } from 'lucide-react'
 
 import type { Video } from '@/api/types'
@@ -10,7 +11,7 @@ function Cover({ url, title }: { url: string | null; title: string }) {
   return url ? (
     <img src={url} alt={title} className="h-full w-full object-cover" />
   ) : (
-    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Нет обложки</div>
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{t('common.noCover')}</div>
   )
 }
 
@@ -20,7 +21,7 @@ function Trailer({ url, cover, title, active }: { url: string; cover: string | n
 
   if (embeddable && active) {
     // the player only exists while its slide is shown, so it stops when the slide is left
-    return <iframe src={url} title={`Трейлер: ${title}`} allowFullScreen className="h-full w-full" />
+    return <iframe src={url} title={t('media.trailerOf', { title })} allowFullScreen className="h-full w-full" />
   }
   return (
     <div className="relative h-full w-full bg-black">
@@ -28,10 +29,10 @@ function Trailer({ url, cover, title, active }: { url: string; cover: string | n
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white">
         <Play className="size-12" />
         {embeddable ? (
-          <span className="text-sm">Трейлер</span>
+          <span className="text-sm">{t('media.trailer')}</span>
         ) : (
           <a href={url} target="_blank" rel="noreferrer" className="text-sm underline">
-            Смотреть видео
+            {t('media.watch')}
           </a>
         )}
       </div>
@@ -40,7 +41,7 @@ function Trailer({ url, cover, title, active }: { url: string; cover: string | n
 }
 
 function YouTubeVideo({ video, active }: { video: Video; active: boolean }) {
-  const label = `${videoKindLabels[video.kind]}: ${video.title ?? 'видео на YouTube'}`
+  const label = `${videoKindLabels[video.kind]}: ${video.title ?? t('media.youtube')}`
   if (active) {
     // like the trailer, the player exists only while its slide is shown
     return (
@@ -88,8 +89,8 @@ export function MediaSlider({
 }) {
   const { ref, index, canPrev, canNext, scrollPage, scrollToIndex } = useScroller()
 
-  const slides: Slide[] = [{ key: 'cover', label: 'Обложка', type: 'cover' }]
-  if (videoUrl) slides.push({ key: 'trailer', label: 'Трейлер', type: 'trailer', url: videoUrl })
+  const slides: Slide[] = [{ key: 'cover', label: t('media.cover'), type: 'cover' }]
+  if (videoUrl) slides.push({ key: 'trailer', label: t('media.trailer'), type: 'trailer', url: videoUrl })
   for (const video of videos) {
     slides.push({ key: video.kind, label: videoKindLabels[video.kind], type: 'youtube', video })
   }

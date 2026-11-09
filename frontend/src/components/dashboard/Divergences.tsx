@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { Link } from 'react-router-dom'
 
 import type { Divergence } from '@/api/types'
@@ -19,8 +20,8 @@ function Row({ item }: { item: Divergence }) {
       </div>
       <p className="text-xs text-muted-foreground">
         {item.reason
-          ? `${item.reason.source === 'users' ? 'Игроки жалуются' : 'Критики жалуются'}: ${item.reason.text}`
-          : 'Резюме ИИ пока нет'}
+          ? `${item.reason.source === 'users' ? t('divergences.usersComplain') : t('divergences.criticsComplain')}: ${item.reason.text}`
+          : t('divergences.noSummary')}
       </p>
     </li>
   )
@@ -30,7 +31,7 @@ function Column({ title, subtitle, items }: { title: string; subtitle: string; i
   return (
     <ChartCard title={title} info={subtitle}>
       {items.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">Пока нет игр с заметным разрывом.</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">{t('divergences.empty')}</p>
       ) : (
         <ul className="divide-y">
           {items.map((item) => (
@@ -46,15 +47,12 @@ export function Divergences({ criticsLove, playersLove }: { criticsLove: Diverge
   return (
     <section className="space-y-3">
       <h2 className="flex items-center justify-between gap-2 text-xl font-semibold">
-        Где критики и игроки расходятся
-        <InfoTip>
-          Разрыв считается между Metascore и Userscore × 10. В списки попадают игры, у которых разрыв больше 10 баллов
-          (меньшая разница считается согласием) и не меньше 10 оценок игроков.
-        </InfoTip>
+        {t('divergences.title')}
+        <InfoTip>{t('divergences.info')}</InfoTip>
       </h2>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Column title="Критики хвалят, игроки нет" subtitle="Чем недовольны игроки" items={criticsLove} />
-        <Column title="Игроки любят, критики нет" subtitle="Чем недовольны критики" items={playersLove} />
+        <Column title={t('divergences.criticsLove')} subtitle={t('divergences.criticsLoveSub')} items={criticsLove} />
+        <Column title={t('divergences.playersLove')} subtitle={t('divergences.playersLoveSub')} items={playersLove} />
       </div>
     </section>
   )

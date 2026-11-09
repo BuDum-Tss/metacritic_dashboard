@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import type { ReactNode } from 'react'
 
 // The table twin of a chart: every value of the plot is readable here without hovering.
@@ -10,7 +11,7 @@ export function DataTable({
 }) {
   return (
     <details className="text-sm">
-      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Таблица данных</summary>
+      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">{t('dataTable.title')}</summary>
       <div className="mt-2 max-h-64 overflow-auto rounded-md border">
         <table className="w-full text-left">
           <thead className="sticky top-0 bg-card text-xs text-muted-foreground">

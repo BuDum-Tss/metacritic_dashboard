@@ -1,36 +1,37 @@
 import type { Overall, ReviewKind } from '@/api/types'
 import { ScoreBadge } from '@/components/ScoreBadge'
-import { countLabel, plural } from '@/lib/format'
+import { t, tn, type Key } from '@/i18n'
+import { countLabel } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 const TONES = [
-  { key: 'positive', label: 'Положительные', color: 'bg-green-600' },
-  { key: 'mixed', label: 'Смешанные', color: 'bg-yellow-400' },
-  { key: 'negative', label: 'Отрицательные', color: 'bg-red-600' },
-] as const
+  { key: 'positive', label: 'overall.positive', color: 'bg-green-600' },
+  { key: 'mixed', label: 'overall.mixed', color: 'bg-yellow-400' },
+  { key: 'negative', label: 'overall.negative', color: 'bg-red-600' },
+] as const satisfies readonly { key: string; label: Key; color: string }[]
 
 function ToneBar({ kind, overall }: { kind: ReviewKind; overall: Overall }) {
-  const total = TONES.reduce((sum, t) => sum + (overall[t.key] ?? 0), 0)
+  const total = TONES.reduce((sum, tone) => sum + (overall[tone.key] ?? 0), 0)
   if (total === 0) return null
-  const noun: [string, string, string] = kind === 'critics' ? ['отзыв', 'отзыва', 'отзывов'] : ['оценка', 'оценки', 'оценок']
+  const noun: Key = kind === 'critics' ? 'overall.nounCritics' : 'overall.nounUsers'
   return (
     <div className="space-y-2">
       <div className="flex h-1.5 gap-0.5">
-        {TONES.map((t) => {
-          const count = overall[t.key] ?? 0
-          return count > 0 && <div key={t.key} style={{ flexGrow: count }} className={cn('rounded-full', t.color)} />
+        {TONES.map((tone) => {
+          const count = overall[tone.key] ?? 0
+          return count > 0 && <div key={tone.key} style={{ flexGrow: count }} className={cn('rounded-full', tone.color)} />
         })}
       </div>
       <div className="grid grid-cols-3 gap-2 text-center text-xs">
-        {TONES.map((t) => {
-          const count = overall[t.key] ?? 0
+        {TONES.map((tone) => {
+          const count = overall[tone.key] ?? 0
           return (
-            <div key={t.key}>
+            <div key={tone.key}>
               <p className="font-semibold">
-                {Math.round((count / total) * 100)}% {t.label}
+                {Math.round((count / total) * 100)}% {t(tone.label)}
               </p>
               <p className="text-muted-foreground">
-                {count} {plural(count, noun)}
+                {tn(noun, count)}
               </p>
             </div>
           )
@@ -47,8 +48,8 @@ export function ScoreHeader({ kind, overall }: { kind: ReviewKind; overall: Over
       <ScoreBadge kind={kind === 'critics' ? 'critic' : 'user'} value={overall.score} size="lg" />
       <div className="min-w-0 flex-1 space-y-3">
         <div>
-          <p className="font-semibold">{overall.verdict ?? 'Оценки пока нет'}</p>
-          <p className="text-sm text-muted-foreground">На основе: {countLabel(kind, overall.reviews_count)}</p>
+          <p className="font-semibold">{overall.verdict ?? t('overall.none')}</p>
+          <p className="text-sm text-muted-foreground">{t('overall.basedOn', { count: countLabel(kind, overall.reviews_count) })}</p>
         </div>
         <ToneBar kind={kind} overall={overall} />
       </div>

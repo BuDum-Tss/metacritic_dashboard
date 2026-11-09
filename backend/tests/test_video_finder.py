@@ -229,3 +229,47 @@ def test_a_first_playlist_video_in_another_language_is_not_used():
     api.found = ["p7"]
     result = find_video(api, "Doom", LETSPLAY, None)
     assert (result.video_id, result.playlist_id) == ("p7", None)
+
+
+def test_a_lets_play_without_commentary_is_not_taken_even_when_it_is_the_most_viewed():
+    titles = [
+        "Doom Let's Play Part 1 | No Commentary",
+        "Doom Walkthrough without commentary",
+        "Doom Gameplay (NC)",
+        "Doom Part 1 - commentary free",
+        "Doom Let's Play Part 1 no talking",
+    ]
+    api = FakeApi([video(f"nc{i}", title, 9_000_000 - i) for i, title in enumerate(titles)] + [video("talk", "Doom Let's Play Part 1", 1_000)])
+    assert find_video(api, "Doom", LETSPLAY, None).video_id == "talk"
+
+
+def test_only_commentary_free_videos_found_means_nothing_found():
+    api = FakeApi([video("nc", "Doom Playthrough | No Commentary", 5_000_000)])
+    assert find_video(api, "Doom", LETSPLAY, None) is None
+
+
+def test_the_commentary_mark_does_not_matter_for_a_review():
+    api = FakeApi([video("rev", "Doom Review - No Commentary Needed", 100)])
+    assert find_video(api, "Doom", REVIEW, None).video_id == "rev"
+
+
+def test_words_that_only_look_like_the_mark_are_fine():
+    api = FakeApi([video("ok", "Doom Let's Play Part 1 - Commentary by Ann and the Silent Hill fans", 100)])
+    assert find_video(api, "Doom", LETSPLAY, None).video_id == "ok"
+
+
+def test_game_movies_are_not_taken_either():
+    titles = [
+        "Doom Game Movie (All Cutscenes) Full Story",
+        "Doom - The Full Movie",
+        "Doom All Cutscenes Walkthrough",
+        "Doom Cutscenes Only Playthrough",
+        "Doom GameMovie 4K",
+    ]
+    api = FakeApi([video(f"gm{i}", title, 9_000_000 - i) for i, title in enumerate(titles)] + [video("talk", "Doom Let's Play Part 1", 1_000)])
+    assert find_video(api, "Doom", LETSPLAY, None).video_id == "talk"
+
+
+def test_a_movie_in_the_name_of_the_game_is_not_a_game_movie():
+    api = FakeApi([video("ok", "The Movie Game - Let's Play Part 1", 100)])
+    assert find_video(api, "The Movie Game", LETSPLAY, None).video_id == "ok"

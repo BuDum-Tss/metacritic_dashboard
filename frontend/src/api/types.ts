@@ -106,6 +106,7 @@ export interface Moment {
   type: 'problem' | 'positive'
   topic: string
   note: string
+  quote?: string
 }
 
 export interface VideoSummary {

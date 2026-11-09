@@ -297,7 +297,7 @@ erDiagram
 | `video_id` | TEXT NOT NULL | видео YouTube |
 | `status` | TEXT NOT NULL | `pending` (в очереди после миграции), `running`, `done`, `failed` |
 | `text` | TEXT | заключение; ссылки на таймкоды записаны как `[слова](t=секунды)` |
-| `moments` | JSON | список ярких моментов `{start, type, topic, note}` |
+| `moments` | JSON | список ярких моментов `{start, type, topic, note, quote}`; `quote` — слова автора из транскрипта (у моментов, построенных ранними версиями запроса, его нет) |
 | `model` | TEXT | модель, построившая заключение |
 | `prompt_version` | INTEGER | версия запроса |
 | `error` | TEXT | причина, если `status = failed` |

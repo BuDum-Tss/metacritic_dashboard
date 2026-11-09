@@ -7,23 +7,24 @@ import { ScoreHeader } from '@/components/Overall'
 import { ScoreBadge } from '@/components/ScoreBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { formatDateTime, plural, reviewTone, type ReviewTone } from '@/lib/format'
+import { t, tn, type Key } from '@/i18n'
+import { formatDateTime, reviewTone, type ReviewTone } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-const TITLES: Record<ReviewKind, string> = { critics: 'Отзывы критиков', users: 'Отзывы игроков' }
+const TITLES: Record<ReviewKind, Key> = { critics: 'reviews.titleCritics', users: 'reviews.titleUsers' }
 
 // what the sample is and why it is smaller than the total; the total is counted over all platforms
 function sampleNote(kind: ReviewKind, summary: ReviewSummary): string {
   const n = summary.sample_size
   const total = summary.total_reviews
   if (kind === 'critics') {
-    const sample = `В выборке ${n} ${plural(n, ['отзыв', 'отзыва', 'отзывов'])} критиков`
-    const all = total ? ` из ${total} на всех платформах` : ''
-    return `${sample}${all}. С сайта доступны только первые страницы отзывов каждой платформы.`
+    const sample = tn('reviews.sampleCritics', n)
+    const all = total ? ` ${t('reviews.ofTotalAll', { total })}` : ''
+    return `${sample}${all}${t('reviews.criticsTail')}`
   }
-  const sample = `В выборке ${n} ${plural(n, ['отзыв', 'отзыва', 'отзывов'])} с текстом`
-  const all = total ? ` из ${total} ${plural(total, ['оценки', 'оценок', 'оценок'])} игроков` : ''
-  return `${sample}${all}. У остальных оценок нет текста или он скрыт как спойлер.`
+  const sample = tn('reviews.sampleUsers', n)
+  const all = total ? ` ${tn('reviews.ofTotalUsers', total, { total })}` : ''
+  return `${sample}${all}${t('reviews.usersTail')}`
 }
 
 type PointKind = 'like' | 'dislike'
@@ -47,25 +48,25 @@ const STYLES: Record<PointKind, { heading: string; point: string; active: string
 }
 
 const TONES = [
-  { key: 'all', label: 'Все' },
-  { key: 'positive', label: 'Положительные' },
-  { key: 'mixed', label: 'Смешанные' },
-  { key: 'negative', label: 'Отрицательные' },
-] as const
+  { key: 'all', label: 'reviews.all' },
+  { key: 'positive', label: 'overall.positive' },
+  { key: 'mixed', label: 'overall.mixed' },
+  { key: 'negative', label: 'overall.negative' },
+] as const satisfies readonly { key: string; label: Key }[]
 type ToneFilter = (typeof TONES)[number]['key']
 
 function ReviewItem({ review, kind, accent }: { review: Review; kind: ReviewKind; accent?: PointKind }) {
   return (
     <li className={cn('space-y-1 rounded-md border p-3', accent && STYLES[accent].stripe)}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <ScoreBadge kind={kind === 'critics' ? 'critic' : 'user'} value={review.score} title="Оценка" />
-        <span className="font-medium">{review.author ?? 'Аноним'}</span>
+        <ScoreBadge kind={kind === 'critics' ? 'critic' : 'user'} value={review.score} title={t('reviews.score')} />
+        <span className="font-medium">{review.author ?? t('reviews.anonymous')}</span>
         <span className="text-xs text-muted-foreground">
           {[review.platform, review.date].filter(Boolean).join(' · ')}
         </span>
         {review.url && (
           <a href={review.url} target="_blank" rel="noreferrer" className="ml-auto text-xs underline">
-            Полный обзор
+            {t('reviews.full')}
           </a>
         )}
       </div>
@@ -92,10 +93,10 @@ function PointGroup({
     <div className="space-y-2">
       <h4 className={cn('flex items-center gap-2 text-sm font-semibold', style.heading)}>
         <Icon className="size-4" />
-        {kind === 'like' ? 'Что нравится' : 'Что не нравится'}
+        {kind === 'like' ? t('reviews.likes') : t('reviews.dislikes')}
       </h4>
       {points.length === 0 ? (
-        <p className="text-sm text-muted-foreground">В выборке нет оснований для этого раздела</p>
+        <p className="text-sm text-muted-foreground">{t('reviews.noGrounds')}</p>
       ) : (
         points.map((point) => (
           <button
@@ -110,7 +111,7 @@ function PointGroup({
             )}
           >
             {point.text}
-            <span className="ml-2 text-xs text-muted-foreground">· отзывов: {point.review_ids.length}</span>
+            <span className="ml-2 text-xs text-muted-foreground">{t('reviews.reviewsCount', { n: point.review_ids.length })}</span>
           </button>
         ))
       )}
@@ -172,12 +173,15 @@ function ReviewPane({
           <Card>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-base font-semibold">Резюме ИИ</h3>
+                <h3 className="text-base font-semibold">{t('reviews.aiSummary')}</h3>
                 <InfoTip>
-                  Резюме ИИ. {sampleNote(kind, summary)} Модель {summary.model}, {formatDateTime(summary.generated_at)}.
-                  Нажмите на пункт, чтобы оставить справа только отзывы, на которых он основан.
-                  {kind === 'critics' &&
-                    ' Доступные отзывы критиков смещены к высоким оценкам: отсутствие критики здесь не значит, что недостатков нет.'}
+                  {t('reviews.aiNote', {
+                    sample: sampleNote(kind, summary),
+                    model: summary.model,
+                    time: formatDateTime(summary.generated_at),
+                  })}{' '}
+                  {t('reviews.clickHint')}
+                  {kind === 'critics' && ` ${t('reviews.criticsBias')}`}
                 </InfoTip>
               </div>
               <PointGroup kind="like" points={likes} activeId={pointId} onToggle={toggle} />
@@ -196,38 +200,38 @@ function ReviewPane({
                   )}
                 >
                   <p className="text-sm">
-                    Отзывы к пункту: <span className="font-medium">«{point.text}»</span>
+                    {t('reviews.forPoint')}<span className="font-medium">«{point.text}»</span>
                   </p>
                   <Button variant="outline" size="sm" onClick={() => setPointId(null)}>
-                    Сбросить
+                    {t('reviews.reset')}
                   </Button>
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-base font-semibold">Отзывы выборки</h3>
+                  <h3 className="text-base font-semibold">{t('reviews.sampleReviews')}</h3>
                   <InfoTip>{sampleNote(kind, summary)}</InfoTip>
                 </div>
               )}
 
-              <div role="group" aria-label="Тональность" className="flex flex-wrap gap-2">
-                {TONES.map((t) => (
+              <div role="group" aria-label={t('reviews.tone')} className="flex flex-wrap gap-2">
+                {TONES.map((item) => (
                   <button
-                    key={t.key}
+                    key={item.key}
                     type="button"
-                    aria-pressed={tone === t.key}
-                    onClick={() => setTone(t.key)}
+                    aria-pressed={tone === item.key}
+                    onClick={() => setTone(item.key)}
                     className={cn(
                       'rounded-full border px-3 py-1 text-xs transition-colors hover:bg-muted',
-                      tone === t.key && 'border-foreground bg-muted font-semibold',
+                      tone === item.key && 'border-foreground bg-muted font-semibold',
                     )}
                   >
-                    {t.label} ({counts[t.key]})
+                    {t(item.label)} ({counts[item.key]})
                   </button>
                 ))}
               </div>
 
               {shown.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Нет отзывов, подходящих под выбранный фильтр</p>
+                <p className="text-sm text-muted-foreground">{t('reviews.noMatch')}</p>
               ) : (
                 <ul className="max-h-[36rem] min-h-0 space-y-2 overflow-y-auto pr-1 lg:max-h-none lg:flex-1">
                   {shown.map((review) => (
@@ -239,7 +243,7 @@ function ReviewPane({
           </Card>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">Резюме ИИ и отзывы пока недоступны</p>
+        <p className="text-sm text-muted-foreground">{t('reviews.unavailable')}</p>
       )}
     </div>
   )
@@ -258,7 +262,7 @@ export function ReviewsSection({
   if (!overall.critics && !overall.users && !summaries.critics && !summaries.users) return null
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Отзывы</h2>
+      <h2 className="text-xl font-semibold">{t('reviews.title')}</h2>
       <div role="tablist" className="flex gap-6 border-b">
         {kinds.map((kind) => {
           const count = overall[kind]?.reviews_count ?? summaries[kind]?.total_reviews ?? null
@@ -274,7 +278,7 @@ export function ReviewsSection({
                 active === kind && 'border-foreground font-semibold text-foreground',
               )}
             >
-              {TITLES[kind]}
+              {t(TITLES[kind])}
               {count !== null && <span className="ml-1.5 text-sm">{`(${count})`}</span>}
             </button>
           )

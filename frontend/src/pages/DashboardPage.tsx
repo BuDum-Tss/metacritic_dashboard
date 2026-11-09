@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -29,11 +30,11 @@ export function DashboardPage() {
   return (
     <div className="space-y-8">
       <h1 className="flex items-center justify-between gap-2 text-3xl font-bold">
-        Рынок игр
-        <InfoTip>Какие игры успешнее и почему, по данным Metacritic.</InfoTip>
+        {t('dashboard.title')}
+        <InfoTip>{t('dashboard.info')}</InfoTip>
       </h1>
 
-      {dashboard.isError && <p className="text-destructive">Не удалось загрузить дашборд: {dashboard.error.message}</p>}
+      {dashboard.isError && <p className="text-destructive">{t('dashboard.loadError', { message: dashboard.error.message })}</p>}
 
       {!data ? (
         !dashboard.isError && (
@@ -62,12 +63,12 @@ export function DashboardPage() {
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Недавние релизы</h2>
+          <h2 className="text-xl font-semibold">{t('dashboard.recent')}</h2>
           <Link
             to="/games?sort=release&order=desc"
             className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
           >
-            Смотреть все →
+            {t('dashboard.seeAll')}
           </Link>
         </div>
         {recent.isPending ? (
@@ -79,7 +80,7 @@ export function DashboardPage() {
             ))}
           </Carousel>
         ) : (
-          <p className="text-sm text-muted-foreground">Игр пока нет.</p>
+          <p className="text-sm text-muted-foreground">{t('dashboard.noGames')}</p>
         )}
       </section>
     </div>

@@ -189,6 +189,7 @@ class MomentOut(BaseModel):
     type: str  # problem | positive
     topic: str
     note: str
+    quote: str = ""  # what the author said
 
 
 class VideoSummaryOut(BaseModel):

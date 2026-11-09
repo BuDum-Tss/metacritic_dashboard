@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { useQuery } from '@tanstack/react-query'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -55,9 +56,9 @@ function Hero({ game: g }: { game: GameDetail }) {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <h1 className="text-3xl font-bold">{g.title}</h1>
-                {g.developer && <p className="text-muted-foreground">Разработчик: {g.developer}</p>}
+                {g.developer && <p className="text-muted-foreground">{t('game.developer', { name: g.developer })}</p>}
                 {g.release_date && (
-                  <p className="text-muted-foreground">Дата выхода: {formatDate(g.release_date)}</p>
+                  <p className="text-muted-foreground">{t('game.released', { date: formatDate(g.release_date) })}</p>
                 )}
               </div>
               <GameScore score={g.score} size="lg" captions />
@@ -76,14 +77,14 @@ function Hero({ game: g }: { game: GameDetail }) {
           {collapsed && (
             <div className="absolute inset-x-0 bottom-0 flex h-16 items-end bg-gradient-to-t from-background via-background/90 to-transparent">
               <Button variant="link" size="sm" className="px-0" onClick={() => setExpanded(true)}>
-                Показать полностью
+                {t('game.showAll')}
               </Button>
             </div>
           )}
         </div>
         {overflowing && expanded && (
           <Button variant="link" size="sm" className="px-0" onClick={() => setExpanded(false)}>
-            Свернуть
+            {t('game.fold')}
           </Button>
         )}
       </div>
@@ -112,9 +113,9 @@ export function GamePage() {
     const notFound = game.error instanceof ApiError && game.error.status === 404
     return (
       <div className="space-y-3">
-        <p className="text-destructive">{notFound ? 'Игра не найдена' : `Ошибка: ${game.error.message}`}</p>
+        <p className="text-destructive">{notFound ? t('game.notFound') : t('game.error', { message: game.error.message })}</p>
         <Link to="/games" className="text-sm underline">
-          К списку игр
+          {t('game.toList')}
         </Link>
       </div>
     )
@@ -124,16 +125,16 @@ export function GamePage() {
   return (
     <div className="space-y-8">
       <Link to="/games" className="text-sm text-muted-foreground hover:underline">
-        ← К списку игр
+        {t('game.backToList')}
       </Link>
 
       <div className="space-y-3">
         {/* the key resets the folded state when another game is opened */}
         <Hero key={g.id} game={g} />
         <p className="text-xs text-muted-foreground">
-          Обновлено: {formatDateTime(g.last_processed_at)} ·{' '}
+          {t('game.updated', { time: formatDateTime(g.last_processed_at) })} ·{' '}
           <a href={g.url} target="_blank" rel="noreferrer" className="underline">
-            Страница на Metacritic
+            {t('game.metacriticPage')}
           </a>
         </p>
         {g.videos.length > 0 && (
@@ -142,15 +143,15 @@ export function GamePage() {
               <li key={video.kind}>
                 <span className="text-muted-foreground">{videoKindLabels[video.kind]}:</span>{' '}
                 <a href={video.url} target="_blank" rel="noreferrer" className="underline">
-                  {video.title ?? 'Видео на YouTube'}
+                  {video.title ?? t('game.youtubeVideo')}
                 </a>
                 {video.channel && <span className="text-muted-foreground"> · {video.channel}</span>}
-                {video.views !== null && <span className="text-muted-foreground"> · {compact(video.views)} просмотров</span>}
+                {video.views !== null && <span className="text-muted-foreground">{t('game.views', { n: compact(video.views) })}</span>}
                 {video.playlist_url && (
                   <>
                     {' · '}
                     <a href={video.playlist_url} target="_blank" rel="noreferrer" className="underline">
-                      весь плейлист
+                      {t('game.wholePlaylist')}
                     </a>
                   </>
                 )}
@@ -161,7 +162,7 @@ export function GamePage() {
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Оценки по платформам</h2>
+        <h2 className="text-xl font-semibold">{t('game.platforms')}</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {g.platforms.map((p) => (
             <Card key={p.platform} size="sm">
@@ -195,7 +196,7 @@ export function GamePage() {
 
       {g.similar.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold">Похожие игры</h2>
+          <h2 className="text-xl font-semibold">{t('game.similar')}</h2>
           <Carousel key={g.id}>
             {g.similar.map((other) => (
               <GameCard key={other.id} game={other} />

@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
@@ -23,7 +24,7 @@ export default function App() {
             <Route
               index
               element={
-                <Suspense fallback={<p className="text-muted-foreground">Загрузка…</p>}>
+                <Suspense fallback={<p className="text-muted-foreground">{t('app.loading')}</p>}>
                   <DashboardPage />
                 </Suspense>
               }

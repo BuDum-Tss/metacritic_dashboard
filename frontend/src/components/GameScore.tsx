@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import type { Score } from '@/api/types'
 import { ScoreBadge } from '@/components/ScoreBadge'
 
@@ -14,12 +15,12 @@ export function GameScore({
   return (
     <div className="flex shrink-0 items-start gap-2">
       <div className="flex flex-col items-center gap-1">
-        <ScoreBadge kind="critic" value={score.critics} size={size} title="Metascore: среднее по платформам" />
-        {captions && <span className="text-xs text-muted-foreground">Критики</span>}
+        <ScoreBadge kind="critic" value={score.critics} size={size} title={t('score.metascoreTip')} />
+        {captions && <span className="text-xs text-muted-foreground">{t('score.critics')}</span>}
       </div>
       <div className="flex flex-col items-center gap-1">
-        <ScoreBadge kind="user" value={score.users} size={size} title="Userscore: среднее по платформам" />
-        {captions && <span className="text-xs text-muted-foreground">Игроки</span>}
+        <ScoreBadge kind="user" value={score.users} size={size} title={t('score.userscoreTip')} />
+        {captions && <span className="text-xs text-muted-foreground">{t('score.players')}</span>}
       </div>
     </div>
   )

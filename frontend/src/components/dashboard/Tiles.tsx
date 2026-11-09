@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import type { DashboardTiles } from '@/api/types'
 import { InfoTip } from '@/components/InfoTip'
 import { Card, CardContent } from '@/components/ui/card'
@@ -20,17 +21,17 @@ function Tile({ label, value, note }: { label: string; value: string; note: stri
 export function Tiles({ tiles }: { tiles: DashboardTiles }) {
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <Tile label="Игр в базе" value={String(tiles.games_total)} note="по которым собраны данные" />
-      <Tile label="Новых за 7 дней" value={String(tiles.new_7d)} note="впервые попали в базу" />
+      <Tile label={t('tiles.games')} value={String(tiles.games_total)} note={t('tiles.gamesNote')} />
+      <Tile label={t('tiles.new')} value={String(tiles.new_7d)} note={t('tiles.newNote')} />
       <Tile
-        label="Доля хитов"
+        label={t('tiles.hits')}
         value={tiles.hits_share === null ? '—' : `${tiles.hits_share}%`}
-        note="критики от 75 и игроки от 7,5"
+        note={t('tiles.hitsNote')}
       />
       <Tile
-        label="Разрыв критиков и игроков"
+        label={t('tiles.gap')}
         value={decimal(tiles.avg_gap)}
-        note="в среднем, баллов из 100"
+        note={t('tiles.gapNote')}
       />
     </div>
   )

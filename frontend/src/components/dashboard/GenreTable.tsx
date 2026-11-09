@@ -1,3 +1,4 @@
+import { t, tn } from '@/i18n'
 import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
@@ -9,10 +10,10 @@ import { cn } from '@/lib/utils'
 type SortKey = 'avg_critics' | 'avg_users' | 'avg_attention'
 type Order = 'asc' | 'desc'
 
-const COLUMNS: { key: SortKey; label: string; format: (value: number) => string }[] = [
-  { key: 'avg_critics', label: 'Metascore', format: (value) => decimal(value) },
-  { key: 'avg_users', label: 'Userscore', format: (value) => decimal(value) },
-  { key: 'avg_attention', label: 'Оценок на игру', format: compact },
+const COLUMNS: { key: SortKey; label: () => string; format: (value: number) => string }[] = [
+  { key: 'avg_critics', label: () => 'Metascore', format: (value) => decimal(value) },
+  { key: 'avg_users', label: () => 'Userscore', format: (value) => decimal(value) },
+  { key: 'avg_attention', label: () => t('genres.attention'), format: compact },
 ]
 
 // the genres by one of the metrics; a genre without the value is always last
@@ -46,21 +47,21 @@ export function GenreTable({ genres }: { genres: GenreStat[] }) {
 
   return (
     <ChartCard
-      title="Жанры"
+      title={t('genres.title')}
       className="lg:h-0 lg:min-h-full"
       contentClassName="min-h-0 flex-1"
-      info="Какие жанры успешнее: средние оценки и число оценок игроков на игру жанра. Только жанры, где не меньше 3 игр. Нажмите на заголовок метрики, чтобы отсортировать по ней."
+      info={t('genres.info')}
     >
       {genres.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          Жанры появятся, когда в них наберётся хотя бы 3 игры.
+          {t('genres.empty')}
         </p>
       ) : (
         <div className="max-h-96 overflow-auto lg:h-full lg:max-h-none">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
               <tr>
-                <th className="py-2 pr-3 font-medium">Жанр</th>
+                <th className="py-2 pr-3 font-medium">{t('genres.genre')}</th>
                 {COLUMNS.map((column, index) => {
                   const active = sort.key === column.key
                   return (
@@ -72,13 +73,13 @@ export function GenreTable({ genres }: { genres: GenreStat[] }) {
                       <button
                         type="button"
                         onClick={() => choose(column.key)}
-                        title={`Сортировать по: ${column.label}`}
+                        title={t('genres.sortBy', { label: column.label() })}
                         className={cn(
                           'inline-flex items-center gap-1 text-left font-medium hover:text-foreground',
                           active && 'text-foreground',
                         )}
                       >
-                        {column.label}
+                        {column.label()}
                         <SortIcon active={active} order={sort.order} />
                       </button>
                     </th>
@@ -91,7 +92,7 @@ export function GenreTable({ genres }: { genres: GenreStat[] }) {
                 <tr key={g.genre} className="border-t">
                   <td className="py-2 pr-3">
                     <span className="break-words font-medium">{g.genre}</span>
-                    <span className="block text-xs text-muted-foreground">{g.games} игр</span>
+                    <span className="block text-xs text-muted-foreground">{tn('genres.games', g.games)}</span>
                   </td>
                   {COLUMNS.map((column, index) => (
                     <td key={column.key} className={index === COLUMNS.length - 1 ? 'py-2 pl-2' : 'px-2 py-2'}>

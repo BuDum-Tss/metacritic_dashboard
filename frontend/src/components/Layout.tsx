@@ -1,14 +1,17 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
+import { SettingsMenu } from '@/components/SettingsMenu'
+import { t, useLang, type Key } from '@/i18n'
 import { cn } from '@/lib/utils'
 
-const links = [
-  { to: '/', label: 'Дашборд', end: true },
-  { to: '/games', label: 'Игры', end: false },
-  { to: '/monitoring', label: 'Мониторинг', end: false },
+const links: { to: string; label: Key; end: boolean }[] = [
+  { to: '/', label: 'nav.dashboard', end: true },
+  { to: '/games', label: 'nav.games', end: false },
+  { to: '/monitoring', label: 'nav.monitoring', end: false },
 ]
 
 export function Layout() {
+  const lang = useLang()
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
@@ -27,13 +30,15 @@ export function Layout() {
                   )
                 }
               >
-                {link.label}
+                {t(link.label)}
               </NavLink>
             ))}
           </nav>
+          <SettingsMenu />
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      {/* the key rebuilds the page when the language changes */}
+      <main key={lang} className="mx-auto max-w-6xl px-4 py-6">
         <Outlet />
       </main>
     </div>

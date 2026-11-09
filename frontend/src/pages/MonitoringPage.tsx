@@ -1,3 +1,4 @@
+import { hasKey, t, type Key } from '@/i18n'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Fragment, useState } from 'react'
@@ -14,15 +15,11 @@ import { formatDateTime, formatDuration } from '@/lib/format'
 const FAST_POLL_MS = 2000
 const SLOW_POLL_MS = 10000
 
-const statusLabels: Record<SyncRun['status'], string> = {
-  running: 'Выполняется',
-  success: 'Успешно',
-  failed: 'Ошибка',
-}
+const statusLabel = (status: SyncRun['status']) => t(`mon.status.${status}`)
 
 function StatusBadge({ status }: { status: SyncRun['status'] }) {
   const variant = status === 'failed' ? 'destructive' : status === 'running' ? 'default' : 'secondary'
-  return <Badge variant={variant}>{statusLabels[status]}</Badge>
+  return <Badge variant={variant}>{statusLabel(status)}</Badge>
 }
 
 function Progress({ run }: { run: SyncRun }) {
@@ -35,34 +32,16 @@ function Progress({ run }: { run: SyncRun }) {
         <div className="h-full bg-primary transition-all" style={{ width: `${percent}%` }} />
       </div>
       <p className="text-xs text-muted-foreground">
-        {done} из {found} игр ({percent}%)
+        {t('mon.progress', { done, found, percent })}
       </p>
     </div>
   )
 }
 
-const outcomeLabels: Record<string, string> = {
-  new: 'Новая',
-  revisited: 'Обновлена',
-  summarized: 'Резюме построено',
-  found: 'Видео найдены',
-  none: 'Ничего не найдено',
-  checked: 'Без изменений',
-  retry: 'Повтор позже',
-  failed: 'Ошибка',
-}
-
-const kindLabels: Record<string, string> = { critics: 'критики', users: 'игроки', letsplay: 'летсплей', review: 'обзор' }
-
-const resultLabels: Record<string, string> = {
-  created: 'резюме построено',
-  same_sample: 'выборка прежняя',
-  too_few: 'мало отзывов в выборке',
-  model_unavailable: 'модель недоступна',
-  bad_answer: 'неразборчивый ответ модели',
-  video: 'видео',
-  playlist: 'плейлист (показано первое видео)',
-  none: 'не найдено',
+// a label of the interface for a value that comes from the server; an unknown value is shown as it is
+function label(prefix: string, value: string): string {
+  const key = `${prefix}.${value}`
+  return hasKey(key) ? t(key) : value
 }
 
 // the games a run worked on; the list grows while the run goes
@@ -73,14 +52,14 @@ function RunGames({ run }: { run: SyncRun }) {
     refetchInterval: run.status === 'running' ? FAST_POLL_MS : false,
   })
 
-  if (games.isPending) return <p className="text-sm text-muted-foreground">Загрузка…</p>
-  if (games.isError) return <p className="text-sm text-destructive">Не удалось загрузить: {games.error.message}</p>
+  if (games.isPending) return <p className="text-sm text-muted-foreground">{t('mon.loading')}</p>
+  if (games.isError) return <p className="text-sm text-destructive">{t('mon.loadError', { message: games.error.message })}</p>
   if (games.data.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         {run.status === 'running'
-          ? 'Пока ни одной игры.'
-          : 'Нет данных об играх этого запуска: он сделан до появления журнала игр или обрабатывать было нечего.'}
+          ? t('mon.noGames')
+          : t('mon.noRunGames')}
       </p>
     )
   }
@@ -89,9 +68,9 @@ function RunGames({ run }: { run: SyncRun }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Игра</TableHead>
-            <TableHead>Итог</TableHead>
-            <TableHead>Подробности</TableHead>
+            <TableHead>{t('mon.colGame')}</TableHead>
+            <TableHead>{t('mon.colOutcome')}</TableHead>
+            <TableHead>{t('mon.colDetails')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -112,7 +91,7 @@ function RunGames({ run }: { run: SyncRun }) {
                     game.outcome === 'failed' ? 'destructive' : game.outcome === 'retry' ? 'outline' : 'secondary'
                   }
                 >
-                  {outcomeLabels[game.outcome] ?? game.outcome}
+                  {label('mon.outcome', game.outcome)}
                 </Badge>
               </TableCell>
               <TableCell className="whitespace-normal text-sm">
@@ -120,7 +99,7 @@ function RunGames({ run }: { run: SyncRun }) {
                   <span className="text-destructive">{game.error}</span>
                 ) : game.details ? (
                   Object.entries(game.details)
-                    .map(([kind, result]) => `${kindLabels[kind] ?? kind}: ${resultLabels[result] ?? result}`)
+                    .map(([kind, result]) => `${label('mon.kind', kind)}: ${label('mon.result', result)}`)
                     .join(' · ')
                 ) : (
                   '—'
@@ -136,30 +115,30 @@ function RunGames({ run }: { run: SyncRun }) {
 
 const PIPELINES: {
   pipeline: Pipeline
-  title: string
-  description: string
-  startLabel: string
-  offLabel?: string
+  title: Key
+  description: Key
+  startLabel: Key
+  offLabel?: Key
 }[] = [
   {
     pipeline: 'crawl',
-    title: 'Обход',
-    description: 'Находит новые игры и обновляет известные: страницы игр, оценки по платформам.',
-    startLabel: 'Запустить обход',
+    title: 'mon.crawl.title',
+    description: 'mon.crawl.description',
+    startLabel: 'mon.crawl.start',
   },
   {
     pipeline: 'analysis',
-    title: 'Анализ отзывов',
-    description: 'Читает отзывы и строит резюме ИИ для игр, у которых изменилось число отзывов.',
-    startLabel: 'Запустить анализ',
-    offLabel: 'ИИ не настроен',
+    title: 'mon.analysis.title',
+    description: 'mon.analysis.description',
+    startLabel: 'mon.analysis.start',
+    offLabel: 'mon.analysis.off',
   },
   {
     pipeline: 'videos',
-    title: 'Видео YouTube',
-    description: 'Ищет для игр самый популярный летсплей и обзор на YouTube; многосерийный летсплей сохраняет плейлистом.',
-    startLabel: 'Запустить поиск видео',
-    offLabel: 'YouTube не настроен',
+    title: 'mon.videos.title',
+    description: 'mon.videos.description',
+    startLabel: 'mon.videos.start',
+    offLabel: 'mon.videos.off',
   },
 ]
 
@@ -172,10 +151,10 @@ function PipelinePanel({
   status,
 }: {
   pipeline: Pipeline
-  title: string
-  description: string
-  startLabel: string
-  offLabel?: string
+  title: Key
+  description: Key
+  startLabel: Key
+  offLabel?: Key
   status: PipelineStatus | undefined
 }) {
   const queryClient = useQueryClient()
@@ -220,53 +199,56 @@ function PipelinePanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold">{title}</h2>
-            {off && <Badge variant="outline">{offLabel ?? 'Выключен'}</Badge>}
+            <h2 className="text-xl font-semibold">{t(title)}</h2>
+            {off && <Badge variant="outline">{offLabel ? t(offLabel) : t('mon.off')}</Badge>}
           </div>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-sm text-muted-foreground">{t(description)}</p>
         </div>
         <Button onClick={() => start.mutate()} disabled={running || off || start.isPending}>
-          {running ? 'Выполняется…' : startLabel}
+          {running ? t('mon.runningNow') : t(startLabel)}
         </Button>
       </div>
 
       {start.isError && !alreadyRunning && (
-        <p className="text-sm text-destructive">Не удалось запустить: {start.error.message}</p>
+        <p className="text-sm text-destructive">{t('mon.startError', { message: start.error.message })}</p>
       )}
-      {alreadyRunning && <p className="text-sm text-muted-foreground">Уже выполняется.</p>}
+      {alreadyRunning && <p className="text-sm text-muted-foreground">{t('mon.alreadyRunning')}</p>}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card size="sm">
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Состояние</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('mon.state')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            <p className="text-lg font-semibold">{off ? 'Выключен' : running ? 'Работает' : 'Ожидает'}</p>
+            <p className="text-lg font-semibold">{off ? t('mon.stateOff') : running ? t('mon.stateWorking') : t('mon.stateWaiting')}</p>
             {current && <Progress run={current} />}
           </CardContent>
         </Card>
         <Card size="sm">
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Следующий запуск</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('mon.next')}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-lg font-semibold">{off ? '—' : formatDateTime(status?.next_run_at ?? null)}</p>
             <p className="text-xs text-muted-foreground">
-              Раз в {status?.interval_hours ?? '—'} ч · до {status?.budget ?? '—'} игр за запуск
+              {t('mon.schedule', { hours: status?.interval_hours ?? '—', budget: status?.budget ?? '—' })}
             </p>
           </CardContent>
         </Card>
         <Card size="sm">
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">Последний запуск</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('mon.last')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
             {last ? (
               <>
                 <StatusBadge status={last.status} />
                 <p className="text-xs text-muted-foreground">
-                  {formatDateTime(last.started_at)} · обработано {last.games_processed ?? 0}, ошибок{' '}
-                  {last.games_failed ?? 0}
+                  {t('mon.lastInfo', {
+                    time: formatDateTime(last.started_at),
+                    processed: last.games_processed ?? 0,
+                    failed: last.games_failed ?? 0,
+                  })}
                 </p>
               </>
             ) : (
@@ -283,20 +265,20 @@ function PipelinePanel({
         className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
       >
         {runsOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-        Запуски{runs.data ? ` (${runs.data.length})` : ''}
+        {t('mon.runs')}{runs.data ? ` (${runs.data.length})` : ''}
       </button>
       {runsOpen && (
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>#</TableHead>
-            <TableHead>Статус</TableHead>
-            <TableHead>Запуск</TableHead>
-            <TableHead>Начало</TableHead>
-            <TableHead>Длительность</TableHead>
-            <TableHead>Выбрано</TableHead>
-            <TableHead>Обработано</TableHead>
-            <TableHead>Ошибок</TableHead>
+            <TableHead>{t('mon.colStatus')}</TableHead>
+            <TableHead>{t('mon.colRun')}</TableHead>
+            <TableHead>{t('mon.colStart')}</TableHead>
+            <TableHead>{t('mon.colDuration')}</TableHead>
+            <TableHead>{t('mon.colFound')}</TableHead>
+            <TableHead>{t('mon.colProcessed')}</TableHead>
+            <TableHead>{t('mon.colErrors')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -324,7 +306,7 @@ function PipelinePanel({
                   <TableCell title={run.error ?? undefined}>
                     <StatusBadge status={run.status} />
                   </TableCell>
-                  <TableCell>{run.trigger === 'manual' ? 'Вручную' : 'По расписанию'}</TableCell>
+                  <TableCell>{run.trigger === 'manual' ? t('mon.manual') : t('mon.scheduled')}</TableCell>
                   <TableCell>{formatDateTime(run.started_at)}</TableCell>
                   <TableCell>{formatDuration(run.started_at, run.finished_at)}</TableCell>
                   <TableCell>{run.games_found ?? '—'}</TableCell>
@@ -344,7 +326,7 @@ function PipelinePanel({
           {runs.data?.length === 0 && (
             <TableRow>
               <TableCell colSpan={8} className="py-6 text-center text-muted-foreground">
-                Запусков ещё не было
+                {t('mon.noRuns')}
               </TableCell>
             </TableRow>
           )}
@@ -367,8 +349,8 @@ export function MonitoringPage() {
 
   return (
     <div className="space-y-10">
-      <h1 className="text-2xl font-bold">Мониторинг</h1>
-      {status.isError && <p className="text-destructive">Нет связи с сервером: {status.error.message}</p>}
+      <h1 className="text-2xl font-bold">{t('mon.title')}</h1>
+      {status.isError && <p className="text-destructive">{t('mon.noServer', { message: status.error.message })}</p>}
       {PIPELINES.map((p) => (
         <PipelinePanel key={p.pipeline} {...p} status={status.data?.[p.pipeline]} />
       ))}

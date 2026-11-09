@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { useMemo } from 'react'
 import { Bar, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
@@ -53,23 +54,23 @@ export function Rhythm({
   const lastScored = data.reduce((last, d, i) => (d.critics_avg7 !== null ? i : last), -1)
   const note =
     coverage.with_date === 0
-      ? 'Дата релиза пока неизвестна ни у одной игры: она появится при ближайших обходах.'
-      : `Дата релиза известна у ${coverage.with_date} из ${coverage.total} игр, остальные на графиках не учтены.`
+      ? t('rhythm.noDates')
+      : t('rhythm.someDates', { known: coverage.with_date, total: coverage.total })
 
   return (
     <section className="space-y-3">
       <h2 className="flex items-center justify-between gap-2 text-xl font-semibold">
-        Ритм рынка
-        <InfoTip>Игры по дате релиза за последние 30 дней. {note}</InfoTip>
+        {t('rhythm.title')}
+        <InfoTip>{t('rhythm.info', { note })}</InfoTip>
       </h2>
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Сколько игр выходит" info="Релизов в день и среднее за скользящие 7 дней">
+        <ChartCard title={t('rhythm.countTitle')} info={t('rhythm.countInfo')}>
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
             <LegendItem mark={<span className="size-2.5 rounded-sm" style={{ background: 'var(--viz-accent-soft)' }} />}>
-              Релизов за день
+              {t('rhythm.perDay')}
             </LegendItem>
             <LegendItem mark={<span className="h-0.5 w-4" style={{ background: 'var(--viz-accent-deep)' }} />}>
-              Среднее за 7 дней
+              {t('rhythm.avg7')}
             </LegendItem>
           </div>
           <div className="h-64">
@@ -85,10 +86,10 @@ export function Rhythm({
                       {(row) => (
                         <>
                           <p>
-                            Релизов <b>{row.games}</b>
+                            {t('rhythm.releases')} <b>{row.games}</b>
                           </p>
                           <p>
-                            Среднее за 7 дней <b>{decimal(row.games_avg7)}</b>
+                            {t('rhythm.avg7')} <b>{decimal(row.games_avg7)}</b>
                           </p>
                         </>
                       )}
@@ -110,10 +111,10 @@ export function Rhythm({
           </div>
         </ChartCard>
 
-        <ChartCard title="Растёт ли качество новинок" info="Средний Metascore игр, вышедших за скользящие 7 дней">
+        <ChartCard title={t('rhythm.qualityTitle')} info={t('rhythm.qualityInfo')}>
           {lastScored < 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              Пока нет игр с оценкой критиков и известной датой релиза за этот период.
+              {t('rhythm.qualityEmpty')}
             </p>
           ) : (
             <div className="h-64">
@@ -137,10 +138,10 @@ export function Rhythm({
                         {(row) => (
                           <>
                             <p>
-                              Средний Metascore за 7 дней <b>{decimal(row.critics_avg7)}</b>
+                              {t('rhythm.avgMeta7')} <b>{decimal(row.critics_avg7)}</b>
                             </p>
                             <p>
-                              Игр в окне <b>{Math.round(row.games_avg7 * 7)}</b>
+                              {t('rhythm.gamesInWindow')} <b>{Math.round(row.games_avg7 * 7)}</b>
                             </p>
                           </>
                         )}
@@ -170,11 +171,11 @@ export function Rhythm({
       </div>
       <DataTable
         columns={[
-          { key: 'date', label: 'Дата' },
-          { key: 'games', label: 'Релизов', align: 'right' },
-          { key: 'avg7', label: 'Среднее за 7 дней', align: 'right' },
-          { key: 'critics', label: 'Metascore за день', align: 'right' },
-          { key: 'critics7', label: 'Metascore за 7 дней', align: 'right' },
+          { key: 'date', label: t('rhythm.colDate') },
+          { key: 'games', label: t('rhythm.releases'), align: 'right' },
+          { key: 'avg7', label: t('rhythm.avg7'), align: 'right' },
+          { key: 'critics', label: t('rhythm.colMeta'), align: 'right' },
+          { key: 'critics7', label: t('rhythm.colMeta7'), align: 'right' },
         ]}
         rows={days.map((d) => ({
           date: d.date.split('-').reverse().join('.'),

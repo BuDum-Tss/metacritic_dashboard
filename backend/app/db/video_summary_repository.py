@@ -72,3 +72,13 @@ def pending(session: Session) -> list[tuple[int, str]]:
 def summaries_of_game(session: Session, game_id: int) -> dict[str, str]:
     """video id -> status of its summary."""
     return {row.video_id: row.status for row in session.scalars(select(VideoSummary).where(VideoSummary.game_id == game_id))}
+
+
+def requeue_outdated(session: Session, version: int, now: datetime) -> int:
+    """Summaries made by an older prompt go back to the queue; the old text stays until the new one is ready."""
+    result = session.execute(
+        update(VideoSummary)
+        .where(VideoSummary.status == "done", VideoSummary.prompt_version < version)
+        .values(status="pending", updated_at=now)
+    )
+    return result.rowcount
