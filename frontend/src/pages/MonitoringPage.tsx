@@ -180,13 +180,13 @@ function PipelinePanel({
 }) {
   const queryClient = useQueryClient()
   const [openRun, setOpenRun] = useState<number | null>(null)
-  // the list of runs can be folded; the choice is remembered for every pipeline
+  // the list of runs is folded at first and can be opened; the choice is remembered for every pipeline
   const storageKey = `monitoring:${pipeline}:runs`
   const [runsOpen, setRunsOpen] = useState(() => {
     try {
-      return localStorage.getItem(storageKey) !== 'folded'
+      return localStorage.getItem(storageKey) === 'open'
     } catch {
-      return true
+      return false
     }
   })
   const toggleRuns = () => {

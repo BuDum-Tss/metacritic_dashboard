@@ -77,6 +77,29 @@ def test_search_by_title_is_case_insensitive_and_escapes_wildcards(client):
     assert client.get("/api/games?q=nothing").json()["total"] == 0
 
 
+def test_search_finds_games_by_genre_too(client):
+    assert titles(client.get("/api/games?q=shooter")) == ["Doom 100%", "Quake"]
+    assert titles(client.get("/api/games?q=SHOOT")) == ["Doom 100%", "Quake"]  # a part of the genre, any case
+    assert titles(client.get("/api/games?q=platformer")) == ["Super Mario"]
+
+
+def test_search_looks_in_the_title_and_the_genres_without_doubling_a_game(client):
+    # "action" is a genre of three games; "quake" is a title only; a game matching both ways is listed once
+    assert titles(client.get("/api/games?q=action")) == ["Zelda", "Doom 100%", "No Scores Game"]
+    assert titles(client.get("/api/games?q=quake")) == ["Quake"]
+    assert client.get("/api/games?q=adventure").json()["total"] == 2
+
+
+def test_search_by_genre_works_together_with_the_platform_filter(client):
+    assert titles(client.get("/api/games?q=shooter&platform=ps5")) == ["Doom 100%"]
+    assert titles(client.get("/api/games?q=adventure&platform=pc")) == ["Super Mario"]
+
+
+def test_search_by_genre_escapes_wildcards(client):
+    assert client.get("/api/games?q=Sh_oter").json()["total"] == 0
+    assert client.get("/api/games?q=%25hooter").json()["total"] == 0
+
+
 def test_pagination(client):
     r = client.get("/api/games?page=2&page_size=4").json()
     assert (r["total"], r["page"], r["page_size"], len(r["items"])) == (6, 2, 4, 2)

@@ -71,7 +71,7 @@ export function GamesPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-56 flex-1">
           <Input
-            placeholder="Поиск по названию"
+            placeholder="Поиск по названию или жанру"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />

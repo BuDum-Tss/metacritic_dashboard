@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import Game, GameOverallScore, GamePlatform, game_genres
+from app.db.models import Game, GameOverallScore, GamePlatform, Genre, game_genres
 
 SORTS = ("metascore", "userscore", "release", "title", "updated")
 SIMILAR_LIMIT = 6
@@ -41,7 +41,12 @@ def list_games(
         query = query.where(scores.c.game_id.is_not(None))
     if q:
         escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        query = query.where(Game.title.ilike(f"%{escaped}%", escape="\\"))
+        pattern = f"%{escaped}%"
+        with_genre = select(game_genres.c.game_id).join(Genre, Genre.id == game_genres.c.genre_id).where(
+            Genre.name.ilike(pattern, escape="\\")
+        )
+        # the query is looked for in the title and in the genres of the game
+        query = query.where(or_(Game.title.ilike(pattern, escape="\\"), Game.id.in_(with_genre)))
 
     total = session.scalar(select(func.count()).select_from(query.subquery()))
 
