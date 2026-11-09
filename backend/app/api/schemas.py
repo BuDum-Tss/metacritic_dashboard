@@ -157,6 +157,31 @@ class VideoOut(BaseModel):
     playlist_url: str | None  # a multi-part let's play: the whole playlist
 
 
+class SegmentOut(BaseModel):
+    start: float  # seconds from the start of the video
+    text: str
+    speaker: str | None = None
+
+
+class TranscriptVideoOut(BaseModel):
+    video_id: str
+    title: str | None
+    position: int
+    status: str  # pending | running | done | failed
+    source: str | None  # captions | stt
+    language: str | None
+    duration_seconds: int | None
+    error: str | None
+
+
+class TranscriptsOut(BaseModel):
+    kind: str
+    running: bool  # a task builds the transcripts now
+    stt_enabled: bool  # videos without subtitles can be recognised
+    videos: list[TranscriptVideoOut]
+    segments: list[SegmentOut] | None  # the text of the requested video, when it is done
+
+
 class GameDetail(GameShort):
     url: str
     description: str | None

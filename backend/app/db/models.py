@@ -218,6 +218,30 @@ class GameVideo(Base):
     next_check_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
 
 
+class VideoTranscript(Base):
+    """The text of one video with the time of every phrase; built on request, one row per video.
+
+    status: pending | running | done | failed. segments is a JSON list of {start, text, speaker}.
+    """
+
+    __tablename__ = "video_transcripts"
+    __table_args__ = (UniqueConstraint("game_id", "video_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String)
+    video_id: Mapped[str] = mapped_column(String)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str | None] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    source: Mapped[str | None] = mapped_column(String)
+    language: Mapped[str | None] = mapped_column(String)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    segments: Mapped[list | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime)
+
+
 class SyncRun(Base):
     __tablename__ = "sync_runs"
 

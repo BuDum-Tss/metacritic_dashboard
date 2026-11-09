@@ -72,6 +72,33 @@ export interface Video {
   playlist_url: string | null
 }
 
+export interface TranscriptSegment {
+  start: number
+  text: string
+  speaker: string | null
+}
+
+export type TranscriptStatus = 'pending' | 'running' | 'done' | 'failed'
+
+export interface TranscriptVideo {
+  video_id: string
+  title: string | null
+  position: number
+  status: TranscriptStatus
+  source: 'captions' | 'stt' | null
+  language: string | null
+  duration_seconds: number | null
+  error: string | null
+}
+
+export interface Transcripts {
+  kind: VideoKind
+  running: boolean
+  stt_enabled: boolean
+  videos: TranscriptVideo[]
+  segments: TranscriptSegment[] | null
+}
+
 export interface GameDetail extends GameShort {
   url: string
   description: string | null

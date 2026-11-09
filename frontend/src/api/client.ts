@@ -9,6 +9,8 @@ import type {
   SortOrder,
   SyncRun,
   SyncStatus,
+  Transcripts,
+  VideoKind,
 } from './types'
 
 export class ApiError extends Error {
@@ -56,6 +58,10 @@ export const api = {
     return request<GamePage>(`/api/games?${params}`)
   },
   game: (id: number) => request<GameDetail>(`/api/games/${id}`),
+  transcripts: (gameId: number, kind: VideoKind, videoId?: string) =>
+    request<Transcripts>(`/api/games/${gameId}/transcripts/${kind}${videoId ? `?video_id=${encodeURIComponent(videoId)}` : ''}`),
+  requestTranscripts: (gameId: number, kind: VideoKind) =>
+    request<{ status: string }>(`/api/games/${gameId}/transcripts/${kind}`, { method: 'POST' }),
   platforms: () => request<PlatformOption[]>('/api/games/platforms'),
   dashboard: () => request<Dashboard>('/api/dashboard'),
   syncStatus: () => request<SyncStatus>('/api/sync/status'),

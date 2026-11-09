@@ -129,6 +129,25 @@ class YouTubeClient:
         items = data.get("items", [])
         return items[0]["contentDetails"].get("videoId") if items else None
 
+    def playlist_videos(self, playlist_id: str, limit: int) -> list[tuple[str, str]]:
+        """(id, title) of the videos of a playlist in their order, at most `limit` (1 quota unit per 50)."""
+        videos: list[tuple[str, str]] = []
+        token = None
+        while len(videos) < limit:
+            params = {"part": "snippet", "playlistId": playlist_id, "maxResults": min(50, limit - len(videos))}
+            if token:
+                params["pageToken"] = token
+            data = self._get("playlistItems", params)
+            for item in data.get("items", []):
+                snippet = item.get("snippet", {})
+                video_id = snippet.get("resourceId", {}).get("videoId")
+                if video_id and snippet.get("title") not in ("Private video", "Deleted video"):
+                    videos.append((video_id, snippet.get("title", "")))
+            token = data.get("nextPageToken")
+            if not token:
+                break
+        return videos[:limit]
+
 
 def _parse_time(value: str | None) -> datetime | None:
     """YouTube times look like 2026-11-05T12:00:00Z; stored as naive UTC like everywhere else."""

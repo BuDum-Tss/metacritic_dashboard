@@ -263,7 +263,28 @@ erDiagram
 | `checked_at` | DATETIME NOT NULL | когда видео искали в последний раз |
 | `next_check_at` | DATETIME | когда искать снова; `NULL` — больше не проверять |
 
-Уникальный ключ: `(game_id, kind)`. Индекс: `next_check_at`. Расшифровка и заключение по летсплею (доп. часть 1) будут добавлены отдельной таблицей поверх этих записей.
+Уникальный ключ: `(game_id, kind)`. Индекс: `next_check_at`. 
+### `video_transcripts`
+
+Расшифровка одного видео (для плейлиста — по строке на каждое видео), строится по запросу. Подробности — в [ARCHITECTURE.md](ARCHITECTURE.md), раздел «Транскрипт видео».
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `game_id` | INTEGER FK → games.id, ON DELETE CASCADE | |
+| `kind` | TEXT NOT NULL | `letsplay` или `review` |
+| `video_id` | TEXT NOT NULL | видео YouTube |
+| `position` | INTEGER NOT NULL | номер видео в плейлисте (с 0) |
+| `title` | TEXT | название видео |
+| `status` | TEXT NOT NULL | `pending`, `running`, `done`, `failed` |
+| `source` | TEXT | `captions` (субтитры YouTube) или `stt` (распознавание речи); `NULL`, пока не готово |
+| `language` | TEXT | язык текста |
+| `duration_seconds` | INTEGER | длительность видео, если известна |
+| `segments` | TEXT | JSON-массив реплик `{start, text, speaker}`; `NULL`, пока не готово |
+| `error` | TEXT | причина, если `status = failed` |
+| `updated_at` | DATETIME NOT NULL | |
+
+Уникальный ключ: `(game_id, video_id)`. Заключение по расшифровке (вкладка «Резюме») пока не хранится.
 
 ## Вычисляемые данные
 

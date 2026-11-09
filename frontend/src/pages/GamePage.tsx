@@ -10,6 +10,7 @@ import { MediaSlider } from '@/components/MediaSlider'
 import { GameScore } from '@/components/GameScore'
 import { ReviewsSection } from '@/components/ReviewsSection'
 import { ScoreBadge } from '@/components/ScoreBadge'
+import { VideoSection } from '@/components/VideoSection'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -158,6 +159,8 @@ export function GamePage() {
           </ul>
         )}
       </div>
+
+      {g.videos.length > 0 && <VideoSection key={`video-${g.id}`} gameId={g.id} videos={g.videos} />}
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Оценки по платформам</h2>

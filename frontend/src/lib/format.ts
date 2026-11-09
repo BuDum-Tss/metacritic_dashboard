@@ -67,3 +67,13 @@ export function decimal(n: number | null, digits = 1): string {
 }
 
 export const videoKindLabels: Record<'letsplay' | 'review', string> = { letsplay: 'Летсплей', review: 'Обзор' }
+
+// seconds from the start of a video as 4:07 or 1:02:09
+export function formatTimecode(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+}

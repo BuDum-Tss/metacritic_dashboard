@@ -6,3 +6,4 @@ os.environ.setdefault("DATABASE_PATH", os.path.join(tempfile.mkdtemp(), "import.
 
 # tests must never reach a real model, even when the developer has a key in backend/.env
 os.environ["LLM_API_KEY"] = ""
+os.environ["OPENROUTER_API_KEY"] = ""

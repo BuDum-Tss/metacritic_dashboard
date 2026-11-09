@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     videos_retry_days: int = 3  # a young game without a video is searched again after this long
     videos_results: int = 15  # search results looked at per query
 
+    openrouter_api_key: str = ""  # speech recognition of the videos without subtitles
+    stt_model: str = "openai/whisper-large-v3"
+    stt_chunk_minutes: int = 10  # the sound is cut into pieces of this length (a request takes up to 25 MB)
+    stt_max_video_minutes: int = 600  # longer videos are not recognised: too expensive
+    stt_budget_minutes: int = 600  # sound recognised per request of the user at most
+    stt_timeout_seconds: float = 120.0
+    transcript_max_playlist_videos: int = 50
+
     summary_min_interval_hours: int = 24
     critics_sample_limit: int = 30
     users_sample_limit: int = 40
