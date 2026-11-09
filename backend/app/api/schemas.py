@@ -263,7 +263,7 @@ class GenreStatOut(BaseModel):
     games: int
     avg_critics: float | None
     avg_users: float | None
-    avg_attention: int
+    avg_attention: int | None
 
 
 class ReasonOut(BaseModel):

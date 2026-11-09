@@ -18,7 +18,6 @@ from app.db.queries import average_scores
 HIT_CRITICS = 75  # a "hit": critics from 75 and players from 7.5, the green of Metacritic
 HIT_USERS = 7.5
 MIN_GENRE_GAMES = 3
-TOP_GENRES = 10
 MIN_RATINGS = 10  # a gap between critics and players says nothing on a handful of ratings
 TOP_DIVERGENCES = 5
 MIN_GAP = 10  # a smaller gap (in points of 100) is agreement: well-rated games differ by that much
@@ -104,13 +103,14 @@ def _genres(stats: list[GameStat]) -> list[dict]:
             "games": len(games),
             "avg_critics": _mean([g.critics for g in games if g.critics is not None]),
             "avg_users": _mean([g.users for g in games if g.users is not None]),
-            "avg_attention": half_up(mean(g.attention for g in games)),
+            # over the games that have player ratings; a genre without any has no value
+            "avg_attention": half_up(mean(rated)) if (rated := [g.attention for g in games if g.attention > 0]) else None,
         }
         for genre, games in by_genre.items()
         if len(games) >= MIN_GENRE_GAMES
     ]
     rows.sort(key=lambda row: (-row["games"], row["genre"]))
-    return rows[:TOP_GENRES]
+    return rows
 
 
 def _reason(session: Session, game_id: int, source: str) -> dict | None:

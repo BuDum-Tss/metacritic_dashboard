@@ -178,3 +178,26 @@ def test_dashboard_endpoint_serves_the_blocks(market):
     assert body["tiles"]["games_total"] == 8
     assert len(body["map"]["points"]) == 7
     assert len(body["rhythm"]["days"]) == 30
+
+
+def test_every_genre_with_three_games_is_listed_not_only_the_ten_biggest(database):
+    with session_scope() as s:
+        for genre in range(14):  # 14 genres of 3 games
+            for i in range(3):
+                add(s, f"g{genre}-{i}", [f"Genre {genre:02d}"], [("pc", 70, 7.0, 1, 10)])
+        for i in range(3):  # a smaller genre with a better score
+            add(s, f"p{i}", ["Point-and-Click"], [("pc", 94, 9.0, 1, 10)])
+    names = [g["genre"] for g in build()["genres"]]
+    assert len(names) == 15 and "Point-and-Click" in names
+
+
+def test_attention_of_a_genre_counts_only_the_games_with_ratings(database):
+    with session_scope() as s:
+        add(s, "a", ["Mixed"], [("pc", 80, 8.0, 1, 100)])
+        add(s, "b", ["Mixed"], [("pc", 70, 7.0, 1, 300)])
+        add(s, "c", ["Mixed"], [("pc", None, None, None, None)])  # not rated yet
+        for i in range(3):
+            add(s, f"u{i}", ["Unrated"], [("pc", None, None, None, None)])
+    genres = {g["genre"]: g for g in build()["genres"]}
+    assert genres["Mixed"]["avg_attention"] == 200  # (100 + 300) / 2, the unrated game does not pull it down
+    assert genres["Unrated"]["avg_attention"] is None

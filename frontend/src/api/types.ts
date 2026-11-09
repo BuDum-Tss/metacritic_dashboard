@@ -209,7 +209,7 @@ export interface GenreStat {
   games: number
   avg_critics: number | null
   avg_users: number | null
-  avg_attention: number
+  avg_attention: number | null
 }
 
 export interface Divergence {
