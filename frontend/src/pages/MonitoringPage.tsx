@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -179,6 +180,24 @@ function PipelinePanel({
 }) {
   const queryClient = useQueryClient()
   const [openRun, setOpenRun] = useState<number | null>(null)
+  // the list of runs can be folded; the choice is remembered for every pipeline
+  const storageKey = `monitoring:${pipeline}:runs`
+  const [runsOpen, setRunsOpen] = useState(() => {
+    try {
+      return localStorage.getItem(storageKey) !== 'folded'
+    } catch {
+      return true
+    }
+  })
+  const toggleRuns = () => {
+    const next = !runsOpen
+    setRunsOpen(next)
+    try {
+      localStorage.setItem(storageKey, next ? 'open' : 'folded')
+    } catch {
+      // the choice is just not remembered
+    }
+  }
   const running = status?.running ?? false
   const off = status !== undefined && !status.enabled
 
@@ -257,6 +276,16 @@ function PipelinePanel({
         </Card>
       </div>
 
+      <button
+        type="button"
+        onClick={toggleRuns}
+        aria-expanded={runsOpen}
+        className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+      >
+        {runsOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+        Запуски{runs.data ? ` (${runs.data.length})` : ''}
+      </button>
+      {runsOpen && (
       <Table>
         <TableHeader>
           <TableRow>
@@ -321,6 +350,7 @@ function PipelinePanel({
           )}
         </TableBody>
       </Table>
+      )}
     </section>
   )
 }
