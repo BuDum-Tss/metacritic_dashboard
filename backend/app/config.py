@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 60.0
     llm_retries: int = 2
 
+    youtube_api_key: str = ""
+    videos_budget: int = 4  # games the video search works on per run
+    videos_interval_hours: int = 1
+    videos_offset_minutes: int = 45  # the video search starts this long after the crawl
+    videos_refresh_days: int = 14  # a found video of a young game is searched again after this long
+    videos_retry_days: int = 3  # a young game without a video is searched again after this long
+    videos_results: int = 15  # search results looked at per query
+
     summary_min_interval_hours: int = 24
     critics_sample_limit: int = 30
     users_sample_limit: int = 40

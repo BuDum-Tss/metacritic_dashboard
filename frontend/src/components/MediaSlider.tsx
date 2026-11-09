@@ -1,6 +1,8 @@
 import { Play } from 'lucide-react'
 
+import type { Video } from '@/api/types'
 import { ArrowButton, hideScrollbar } from '@/components/Carousel'
+import { videoKindLabels } from '@/lib/format'
 import { useScroller } from '@/lib/useScroller'
 import { cn } from '@/lib/utils'
 
@@ -37,42 +39,84 @@ function Trailer({ url, cover, title, active }: { url: string; cover: string | n
   )
 }
 
-// The cover and the trailer of a game as slides: the trailer is reached by swiping the picture.
+function YouTubeVideo({ video, active }: { video: Video; active: boolean }) {
+  const label = `${videoKindLabels[video.kind]}: ${video.title ?? 'видео на YouTube'}`
+  if (active) {
+    // like the trailer, the player exists only while its slide is shown
+    return (
+      <iframe
+        src={`https://www.youtube-nocookie.com/embed/${video.video_id}?rel=0`}
+        title={label}
+        allow="accelerometer; encrypted-media; picture-in-picture; fullscreen"
+        allowFullScreen
+        className="h-full w-full"
+      />
+    )
+  }
+  return (
+    <div className="relative h-full w-full bg-black">
+      <img
+        src={`https://i.ytimg.com/vi/${video.video_id}/hqdefault.jpg`}
+        alt=""
+        loading="lazy"
+        className="h-full w-full object-cover opacity-50"
+      />
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-white">
+        <Play className="size-12" />
+        <span className="text-sm font-medium">{videoKindLabels[video.kind]}</span>
+      </div>
+    </div>
+  )
+}
+
+type Slide =
+  | { key: string; label: string; type: 'cover' }
+  | { key: string; label: string; type: 'trailer'; url: string }
+  | { key: string; label: string; type: 'youtube'; video: Video }
+
+// The cover, the trailer and the videos of a game as slides: the rest is reached by swiping the picture.
 export function MediaSlider({
   title,
   coverUrl,
   videoUrl,
+  videos = [],
 }: {
   title: string
   coverUrl: string | null
   videoUrl: string | null
+  videos?: Video[]
 }) {
   const { ref, index, canPrev, canNext, scrollPage, scrollToIndex } = useScroller()
-  const count = videoUrl ? 2 : 1
+
+  const slides: Slide[] = [{ key: 'cover', label: 'Обложка', type: 'cover' }]
+  if (videoUrl) slides.push({ key: 'trailer', label: 'Трейлер', type: 'trailer', url: videoUrl })
+  for (const video of videos) {
+    slides.push({ key: video.kind, label: videoKindLabels[video.kind], type: 'youtube', video })
+  }
 
   return (
     <div className="relative h-full w-full">
       <div ref={ref} className={cn('flex h-full snap-x snap-mandatory overflow-x-auto scroll-smooth', hideScrollbar)}>
-        <div className="h-full w-full shrink-0 snap-center">
-          <Cover url={coverUrl} title={title} />
-        </div>
-        {videoUrl && (
-          <div className="h-full w-full shrink-0 snap-center">
-            <Trailer url={videoUrl} cover={coverUrl} title={title} active={index === 1} />
+        {slides.map((slide, i) => (
+          <div key={slide.key} className="h-full w-full shrink-0 snap-center">
+            {slide.type === 'cover' && <Cover url={coverUrl} title={title} />}
+            {slide.type === 'trailer' && <Trailer url={slide.url} cover={coverUrl} title={title} active={index === i} />}
+            {slide.type === 'youtube' && <YouTubeVideo video={slide.video} active={index === i} />}
           </div>
-        )}
+        ))}
       </div>
 
-      {count > 1 && (
+      {slides.length > 1 && (
         <>
           {canPrev && <ArrowButton direction="prev" onClick={() => scrollPage(-1)} />}
           {canNext && <ArrowButton direction="next" onClick={() => scrollPage(1)} />}
           <div className="absolute inset-x-0 bottom-2 z-10 flex justify-center gap-2">
-            {Array.from({ length: count }, (_, i) => (
+            {slides.map((slide, i) => (
               <button
-                key={i}
+                key={slide.key}
                 type="button"
-                aria-label={i === 0 ? 'Обложка' : 'Трейлер'}
+                aria-label={slide.label}
+                title={slide.label}
                 aria-current={i === index}
                 onClick={() => scrollToIndex(i)}
                 className={cn('size-2 rounded-full bg-white/60 ring-1 ring-black/30', i === index && 'bg-white')}

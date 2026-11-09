@@ -9,15 +9,15 @@ from app.config import settings
 from app.db import repository
 from app.db.models import SyncRun
 from app.db.session import session_scope
-from app.services import analysis, crawl
-from app.services.pipelines import ANALYSIS, CRAWL, PipelineRunning, is_running
+from app.services import analysis, crawl, videos
+from app.services.pipelines import ANALYSIS, CRAWL, VIDEOS, PipelineRunning, is_running
 from app.sources.base import GameSource
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
 
-PipelineName = Literal["crawl", "analysis"]
+PipelineName = Literal["crawl", "analysis", "videos"]
 
 
 def _run_crawl(source: GameSource) -> None:
@@ -34,12 +34,20 @@ def _run_analysis(source: GameSource) -> None:
         log.info("manual analysis skipped: it is already running")
 
 
+def _run_videos() -> None:
+    try:
+        videos.run_videos("manual")
+    except PipelineRunning:
+        log.info("manual video search skipped: it is already running")
+
+
 def _pipeline_status(request: Request, pipeline: str) -> PipelineStatus:
     scheduler = request.app.state.scheduler
     job = scheduler.get_job(pipeline) if scheduler else None
     interval, budget, enabled = {
         CRAWL: (settings.crawl_interval_hours, settings.crawl_budget, True),
         ANALYSIS: (settings.analysis_interval_hours, settings.analysis_budget, analysis.is_enabled()),
+        VIDEOS: (settings.videos_interval_hours, settings.videos_budget, videos.is_enabled()),
     }[pipeline]
 
     with session_scope() as session:
@@ -62,6 +70,7 @@ def get_status(request: Request) -> SyncStatus:
     return SyncStatus(
         crawl=_pipeline_status(request, CRAWL),
         analysis=_pipeline_status(request, ANALYSIS),
+        videos=_pipeline_status(request, VIDEOS),
     )
 
 
@@ -69,12 +78,16 @@ def get_status(request: Request) -> SyncStatus:
 def run_now(request: Request, background: BackgroundTasks, pipeline: PipelineName = Query(...)) -> dict:
     if pipeline == ANALYSIS and not analysis.is_enabled():
         raise HTTPException(status_code=400, detail="The analysis is off: no LLM_API_KEY is set")
+    if pipeline == VIDEOS and not videos.is_enabled():
+        raise HTTPException(status_code=400, detail="The video search is off: no YOUTUBE_API_KEY is set")
     if is_running(pipeline):
         raise HTTPException(status_code=409, detail=f"The {pipeline} is already running")
     if pipeline == CRAWL:
         background.add_task(_run_crawl, request.app.state.crawl_source)
-    else:
+    elif pipeline == ANALYSIS:
         background.add_task(_run_analysis, request.app.state.analysis_source)
+    else:
+        background.add_task(_run_videos)
     return {"status": "accepted"}
 
 

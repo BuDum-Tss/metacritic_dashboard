@@ -196,11 +196,33 @@ class AnalysisState(Base):
     total_reviews: Mapped[int] = mapped_column(Integer)
 
 
+class GameVideo(Base):
+    """The video found on YouTube for a game: one row per kind ("letsplay" | "review").
+
+    video_id is the video shown on the page (the most popular one, or the first of the playlist
+    of a multi-part let's play); it is NULL when nothing was found. next_check_at NULL: never again.
+    """
+
+    __tablename__ = "game_videos"
+    __table_args__ = (UniqueConstraint("game_id", "kind"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String)
+    video_id: Mapped[str | None] = mapped_column(String)
+    title: Mapped[str | None] = mapped_column(String)
+    channel: Mapped[str | None] = mapped_column(String)
+    views: Mapped[int | None] = mapped_column(Integer)
+    playlist_id: Mapped[str | None] = mapped_column(String)
+    checked_at: Mapped[datetime] = mapped_column(DateTime)
+    next_check_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+
+
 class SyncRun(Base):
     __tablename__ = "sync_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    pipeline: Mapped[str] = mapped_column(String)  # "crawl" | "analysis"
+    pipeline: Mapped[str] = mapped_column(String)  # "crawl" | "analysis" | "videos"
     trigger: Mapped[str] = mapped_column(String)  # "schedule" | "manual"
     status: Mapped[str] = mapped_column(String)  # "running" | "success" | "failed"
     source: Mapped[str] = mapped_column(String)

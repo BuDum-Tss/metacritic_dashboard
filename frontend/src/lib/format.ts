@@ -65,3 +65,5 @@ export function compact(n: number): string {
 export function decimal(n: number | null, digits = 1): string {
   return n === null ? '—' : n.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
+
+export const videoKindLabels: Record<'letsplay' | 'review', string> = { letsplay: 'Летсплей', review: 'Обзор' }

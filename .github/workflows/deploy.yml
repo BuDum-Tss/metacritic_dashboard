@@ -81,12 +81,14 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           SITE_ADDRESS: ${{ vars.SITE_ADDRESS }}
         run: |
           {
             if [ -n "$LLM_API_KEY" ]; then printf 'LLM_API_KEY=%s\n' "$LLM_API_KEY"; fi
+            if [ -n "$YOUTUBE_API_KEY" ]; then printf 'YOUTUBE_API_KEY=%s\n' "$YOUTUBE_API_KEY"; fi
             if [ -n "$LLM_BASE_URL" ]; then printf 'LLM_BASE_URL=%s\n' "$LLM_BASE_URL"; fi
             if [ -n "$LLM_MODEL" ]; then printf 'LLM_MODEL=%s\n' "$LLM_MODEL"; fi
             if [ -n "$SITE_ADDRESS" ]; then printf 'SITE_ADDRESS=%s\n' "$SITE_ADDRESS"; fi

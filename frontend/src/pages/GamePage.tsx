@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { countLabel, formatDate, formatDateTime } from '@/lib/format'
+import { compact, countLabel, formatDate, formatDateTime, videoKindLabels } from '@/lib/format'
 
 // the height of an element, kept up to date while it is resized
 function useHeight<T extends HTMLElement>() {
@@ -43,7 +43,7 @@ function Hero({ game: g }: { game: GameDetail }) {
   return (
     <div className="grid items-start gap-6 md:grid-cols-[minmax(0,420px)_1fr]">
       <div ref={coverRef} className="aspect-video w-full overflow-hidden rounded-lg bg-muted">
-        <MediaSlider title={g.title} coverUrl={g.cover_url} videoUrl={g.video_url} />
+        <MediaSlider title={g.title} coverUrl={g.cover_url} videoUrl={g.video_url} videos={g.videos} />
       </div>
       <div>
         <div
@@ -135,6 +135,28 @@ export function GamePage() {
             Страница на Metacritic
           </a>
         </p>
+        {g.videos.length > 0 && (
+          <ul className="space-y-1 text-sm">
+            {g.videos.map((video) => (
+              <li key={video.kind}>
+                <span className="text-muted-foreground">{videoKindLabels[video.kind]}:</span>{' '}
+                <a href={video.url} target="_blank" rel="noreferrer" className="underline">
+                  {video.title ?? 'Видео на YouTube'}
+                </a>
+                {video.channel && <span className="text-muted-foreground"> · {video.channel}</span>}
+                {video.views !== null && <span className="text-muted-foreground"> · {compact(video.views)} просмотров</span>}
+                {video.playlist_url && (
+                  <>
+                    {' · '}
+                    <a href={video.playlist_url} target="_blank" rel="noreferrer" className="underline">
+                      весь плейлист
+                    </a>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <section className="space-y-3">

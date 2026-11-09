@@ -6,7 +6,8 @@ from contextlib import contextmanager
 
 CRAWL = "crawl"  # finds games and loads their pages
 ANALYSIS = "analysis"  # reads the reviews and builds the summaries
-PIPELINES = (CRAWL, ANALYSIS)
+VIDEOS = "videos"  # finds the let's play and the review of a game on YouTube
+PIPELINES = (CRAWL, ANALYSIS, VIDEOS)
 
 _locks = {name: threading.Lock() for name in PIPELINES}
 

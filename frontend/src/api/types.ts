@@ -60,6 +60,18 @@ export interface Overall {
   captured_at: string
 }
 
+export type VideoKind = 'letsplay' | 'review'
+
+export interface Video {
+  kind: VideoKind
+  video_id: string
+  title: string | null
+  channel: string | null
+  views: number | null
+  url: string
+  playlist_url: string | null
+}
+
 export interface GameDetail extends GameShort {
   url: string
   description: string | null
@@ -68,6 +80,7 @@ export interface GameDetail extends GameShort {
   first_seen_at: string
   updated_at: string
   last_processed_at: string
+  videos: Video[]
   similar: GameShort[]
   overall: Record<ReviewKind, Overall | null>
   summaries: Record<ReviewKind, ReviewSummary | null>
@@ -86,7 +99,7 @@ export interface PlatformOption {
   games: number
 }
 
-export type Pipeline = 'crawl' | 'analysis'
+export type Pipeline = 'crawl' | 'analysis' | 'videos'
 
 export interface SyncRun {
   id: number

@@ -14,9 +14,10 @@ from app.api.schemas import (
     ScoreOut,
     SummariesOut,
     SummaryOut,
+    VideoOut,
 )
-from app.db import queries, review_repository
-from app.db.models import Game, ReviewSummary
+from app.db import queries, review_repository, video_repository
+from app.db.models import Game, GameVideo, ReviewSummary
 from app.db.session import session_scope
 
 router = APIRouter(prefix="/api/games", tags=["games"])
@@ -58,12 +59,26 @@ def get_game(game_id: int) -> GameDetail:
             raise HTTPException(status_code=404, detail="Game not found")
         detail = GameDetail.model_validate(game)
         detail.score = _score(game)
+        detail.videos = [_video_out(row) for row in video_repository.list_videos(session, game_id)]
         detail.similar = [_short(other) for other in queries.similar_games(session, game)]
         overall = queries.latest_overall(session, game_id)
         detail.overall = OverallsOut(**{kind: OverallOut.model_validate(row) for kind, row in overall.items()})
         found = review_repository.latest_summaries(session, game_id)
         detail.summaries = SummariesOut(**{kind: _summary_out(summary) for kind, summary in found.items()})
         return detail
+
+
+def _video_out(row: GameVideo) -> VideoOut:
+    watch = f"https://www.youtube.com/watch?v={row.video_id}"
+    return VideoOut(
+        kind=row.kind,
+        video_id=row.video_id,
+        title=row.title,
+        channel=row.channel,
+        views=row.views,
+        url=f"{watch}&list={row.playlist_id}" if row.playlist_id else watch,
+        playlist_url=f"https://www.youtube.com/playlist?list={row.playlist_id}" if row.playlist_id else None,
+    )
 
 
 def _score(game: Game, platform: str | None = None) -> ScoreOut:

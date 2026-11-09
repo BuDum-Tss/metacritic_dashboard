@@ -44,7 +44,7 @@ class RunGameOut(BaseModel):
 
 class PipelineStatus(BaseModel):
     running: bool
-    enabled: bool  # the analysis is off without a model
+    enabled: bool  # the analysis is off without a model, the video search without a YouTube key
     interval_hours: int
     budget: int  # games per run
     next_run_at: datetime | None
@@ -57,6 +57,7 @@ class PipelineStatus(BaseModel):
 class SyncStatus(BaseModel):
     crawl: PipelineStatus
     analysis: PipelineStatus
+    videos: PipelineStatus
 
 
 class PlatformOut(BaseModel):
@@ -146,6 +147,16 @@ class OverallsOut(BaseModel):
     users: OverallOut | None = None
 
 
+class VideoOut(BaseModel):
+    kind: str  # "letsplay" | "review"
+    video_id: str
+    title: str | None
+    channel: str | None
+    views: int | None
+    url: str
+    playlist_url: str | None  # a multi-part let's play: the whole playlist
+
+
 class GameDetail(GameShort):
     url: str
     description: str | None
@@ -154,6 +165,7 @@ class GameDetail(GameShort):
     first_seen_at: datetime
     updated_at: datetime
     last_processed_at: datetime
+    videos: list[VideoOut] = []
     similar: list[GameShort] = []
     overall: OverallsOut = Field(default_factory=OverallsOut)
     summaries: SummariesOut = Field(default_factory=SummariesOut)

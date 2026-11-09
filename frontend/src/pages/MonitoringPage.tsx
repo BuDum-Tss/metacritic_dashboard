@@ -44,12 +44,14 @@ const outcomeLabels: Record<string, string> = {
   new: 'Новая',
   revisited: 'Обновлена',
   summarized: 'Резюме построено',
+  found: 'Видео найдены',
+  none: 'Ничего не найдено',
   checked: 'Без изменений',
   retry: 'Повтор позже',
   failed: 'Ошибка',
 }
 
-const kindLabels: Record<string, string> = { critics: 'критики', users: 'игроки' }
+const kindLabels: Record<string, string> = { critics: 'критики', users: 'игроки', letsplay: 'летсплей', review: 'обзор' }
 
 const resultLabels: Record<string, string> = {
   created: 'резюме построено',
@@ -57,6 +59,9 @@ const resultLabels: Record<string, string> = {
   too_few: 'мало отзывов в выборке',
   model_unavailable: 'модель недоступна',
   bad_answer: 'неразборчивый ответ модели',
+  video: 'видео',
+  playlist: 'плейлист (показано первое видео)',
+  none: 'не найдено',
 }
 
 // the games a run worked on; the list grows while the run goes
@@ -128,7 +133,13 @@ function RunGames({ run }: { run: SyncRun }) {
   )
 }
 
-const PIPELINES: { pipeline: Pipeline; title: string; description: string; startLabel: string }[] = [
+const PIPELINES: {
+  pipeline: Pipeline
+  title: string
+  description: string
+  startLabel: string
+  offLabel?: string
+}[] = [
   {
     pipeline: 'crawl',
     title: 'Обход',
@@ -140,6 +151,14 @@ const PIPELINES: { pipeline: Pipeline; title: string; description: string; start
     title: 'Анализ отзывов',
     description: 'Читает отзывы и строит резюме ИИ для игр, у которых изменилось число отзывов.',
     startLabel: 'Запустить анализ',
+    offLabel: 'ИИ не настроен',
+  },
+  {
+    pipeline: 'videos',
+    title: 'Видео YouTube',
+    description: 'Ищет для игр самый популярный летсплей и обзор на YouTube; многосерийный летсплей сохраняет плейлистом.',
+    startLabel: 'Запустить поиск видео',
+    offLabel: 'YouTube не настроен',
   },
 ]
 
@@ -148,12 +167,14 @@ function PipelinePanel({
   title,
   description,
   startLabel,
+  offLabel,
   status,
 }: {
   pipeline: Pipeline
   title: string
   description: string
   startLabel: string
+  offLabel?: string
   status: PipelineStatus | undefined
 }) {
   const queryClient = useQueryClient()
@@ -181,7 +202,7 @@ function PipelinePanel({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-semibold">{title}</h2>
-            {off && <Badge variant="outline">ИИ не настроен</Badge>}
+            {off && <Badge variant="outline">{offLabel ?? 'Выключен'}</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
@@ -309,7 +330,9 @@ export function MonitoringPage() {
     queryKey: ['sync', 'status'],
     queryFn: api.syncStatus,
     refetchInterval: (query) =>
-      query.state.data?.crawl.running || query.state.data?.analysis.running ? FAST_POLL_MS : SLOW_POLL_MS,
+      query.state.data && Object.values(query.state.data).some((pipeline) => pipeline.running)
+        ? FAST_POLL_MS
+        : SLOW_POLL_MS,
   })
 
   return (

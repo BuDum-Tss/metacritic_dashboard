@@ -25,7 +25,7 @@ erDiagram
     reviews ||--o{ summary_reviews : "in sample"
     summary_points ||--o{ summary_point_reviews : "based on"
     reviews ||--o{ summary_point_reviews : "supports"
-    games ||--o{ game_videos : "later"
+    games ||--o{ game_videos : "videos"
 ```
 
 `sync_runs` с игровыми таблицами не связана внешними ключами, это журнал запусков; `run_games` хранит игры, обработанные в запуске.
@@ -246,17 +246,24 @@ erDiagram
 
 Индекс: `run_id`.
 
-### `game_videos` (доп. часть 1, позже)
+### `game_videos`
+
+Видео с YouTube, найденное для игры: по одной записи на вид (`kind`). Подробности поиска — в [ARCHITECTURE.md](ARCHITECTURE.md), раздел «Видео с YouTube».
 
 | Поле | Тип | Описание |
 |---|---|---|
 | `id` | INTEGER PK | |
-| `game_id` | INTEGER FK → games.id | |
-| `youtube_url` | TEXT NOT NULL | |
-| `views` | INTEGER | |
-| `transcript` | TEXT | |
-| `conclusion` | TEXT | |
-| `created_at` | TEXT NOT NULL | |
+| `game_id` | INTEGER FK → games.id, ON DELETE CASCADE | |
+| `kind` | TEXT NOT NULL | `letsplay` или `review` |
+| `video_id` | TEXT | идентификатор показываемого видео (самое популярное или первое видео плейлиста); `NULL`, если видео не найдено |
+| `title` | TEXT | название показываемого видео |
+| `channel` | TEXT | название канала |
+| `views` | INTEGER | число просмотров показываемого видео на момент проверки |
+| `playlist_id` | TEXT | плейлист многосерийного летсплея, иначе `NULL` |
+| `checked_at` | DATETIME NOT NULL | когда видео искали в последний раз |
+| `next_check_at` | DATETIME | когда искать снова; `NULL` — больше не проверять |
+
+Уникальный ключ: `(game_id, kind)`. Индекс: `next_check_at`. Расшифровка и заключение по летсплею (доп. часть 1) будут добавлены отдельной таблицей поверх этих записей.
 
 ## Вычисляемые данные
 
