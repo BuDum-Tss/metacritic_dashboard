@@ -126,6 +126,14 @@
     }
   html {
     @apply font-sans;
+    color-scheme: light;
+    }
+  /* the native scrollbars and form controls follow the theme */
+  html.dark {
+    color-scheme: dark;
+    }
+  * {
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent) transparent;
     }
 }
 /* chart colours: one accent hue with a lighter and a deeper step, recessive chrome */
