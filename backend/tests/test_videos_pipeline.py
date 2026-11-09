@@ -11,7 +11,7 @@ from app.db.models import GameVideo, RunGame, SyncRun
 from app.db.session import init_db, make_engine, session_scope
 from app.services import videos
 from app.services.pipelines import PipelineRunning, exclusive
-from app.sources.base import Game
+from app.sources.base import Game, PlatformScore
 from app.videos.youtube import PlaylistInfo, QuotaExceeded, VideoInfo
 
 NOW = datetime(2026, 11, 9, 12, 0)
@@ -59,8 +59,16 @@ def database(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "youtube_api_key", "key")
 
 
-def add_game(slug: str, seen: datetime = NOW - timedelta(days=1), release: date | None = date(2026, 11, 1)) -> None:
-    game = Game(slug=slug, url=f"https://example.com/{slug}/", title=slug.title(), release_date=release)
+def add_game(
+    slug: str,
+    seen: datetime = NOW - timedelta(days=1),
+    release: date | None = date(2026, 11, 1),
+    reviews: tuple[int | None, int | None] | None = None,  # critic reviews and player ratings on one platform
+) -> None:
+    platforms = []
+    if reviews is not None:
+        platforms = [PlatformScore("pc", "PC", critic_reviews_count=reviews[0], user_reviews_count=reviews[1])]
+    game = Game(slug=slug, url=f"https://example.com/{slug}/", title=slug.title(), release_date=release, platforms=platforms)
     with session_scope() as session:
         repository.save_game(session, "metacritic", game, seen)
 
@@ -210,3 +218,51 @@ def test_queue_orders_never_searched_before_overdue():
     with session_scope() as session:
         queue = video_repository.video_queue(session, "metacritic", NOW + timedelta(days=3), 10)
     assert [item.slug for item in queue] == ["brand_new", "old_check"]
+
+
+def queue_slugs(limit: int = 10) -> list[str]:
+    with session_scope() as session:
+        return [item.slug for item in video_repository.video_queue(session, "metacritic", NOW, limit)]
+
+
+def test_the_more_popular_game_goes_first_whatever_its_age():
+    add_game("quiet_new", seen=NOW - timedelta(hours=1), reviews=(1, 2))
+    add_game("famous_old", seen=NOW - timedelta(days=20), reviews=(50, 4000))
+    add_game("middle", seen=NOW - timedelta(days=5), reviews=(10, 300))
+    assert queue_slugs() == ["famous_old", "middle", "quiet_new"]
+
+
+def test_the_popularity_adds_up_over_the_platforms_and_missing_counts_are_zero():
+    with_two = Game(
+        slug="two",
+        url="u",
+        title="Two",
+        release_date=date(2026, 11, 1),
+        platforms=[
+            PlatformScore("pc", "PC", critic_reviews_count=10, user_reviews_count=None),
+            PlatformScore("ps5", "PS5", critic_reviews_count=None, user_reviews_count=90),
+        ],
+    )
+    with session_scope() as session:
+        repository.save_game(session, "metacritic", with_two, NOW - timedelta(days=30))
+    add_game("one", reviews=(60, 30))  # 90 in all: less than the 100 of the two platforms together
+    add_game("none", seen=NOW - timedelta(hours=1))  # no platform data at all: the last
+    assert queue_slugs() == ["two", "one", "none"]
+
+
+def test_games_equally_popular_keep_the_newest_first():
+    add_game("older", seen=NOW - timedelta(days=3), reviews=(5, 5))
+    add_game("newer", seen=NOW - timedelta(days=1), reviews=(5, 5))
+    add_game("silent_older", seen=NOW - timedelta(days=3))
+    add_game("silent_newer", seen=NOW - timedelta(days=1))
+    assert queue_slugs() == ["newer", "older", "silent_newer", "silent_older"]
+
+
+def test_a_popular_game_with_a_due_check_still_waits_for_the_games_never_searched():
+    add_game("famous", reviews=(80, 9000))
+    run(FakeApi(), budget=10)  # both kinds of the famous game are found
+    add_game("fresh_unknown", seen=NOW + timedelta(days=15), reviews=(1, 1))
+    with session_scope() as session:
+        later = NOW + timedelta(days=settings.videos_refresh_days, minutes=1)
+        queue = video_repository.video_queue(session, "metacritic", later, 10)
+    assert [item.slug for item in queue] == ["fresh_unknown", "famous"]

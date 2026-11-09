@@ -3,10 +3,10 @@
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Game, GameVideo
+from app.db.models import Game, GamePlatform, GameVideo
 from app.videos.finder import KINDS, VideoResult
 
 
@@ -17,6 +17,7 @@ class QueueItem:
     title: str
     release_date: date | None
     first_seen_at: datetime
+    popularity: int = 0  # reviews of critics and ratings of players over all platforms
     kinds: list[str] = field(default_factory=list)  # the kinds of video to search for
 
 
@@ -24,8 +25,8 @@ def video_queue(session: Session, source: str, now: datetime, limit: int) -> lis
     """Games with a kind of video to search for: it has no row yet or its check is due.
 
     Games that are not out yet are left alone: nobody has made videos about them. First come the
-    games with a kind that was never searched (the newest games first), then the overdue checks,
-    the most overdue first.
+    games with a kind that was never searched (the most popular first, then the newest), then the
+    overdue checks, the most overdue first.
     """
     games = session.execute(
         select(Game.id, Game.slug, Game.title, Game.release_date, Game.first_seen_at)
@@ -35,9 +36,18 @@ def video_queue(session: Session, source: str, now: datetime, limit: int) -> lis
         (row.game_id, row.kind): row for row in session.scalars(select(GameVideo))
     }
 
+    popularity = dict(
+        session.execute(
+            select(
+                GamePlatform.game_id,
+                func.sum(func.coalesce(GamePlatform.critic_reviews_count, 0) + func.coalesce(GamePlatform.user_reviews_count, 0)),
+            ).group_by(GamePlatform.game_id)
+        ).all()
+    )
+
     never, overdue = [], []
     for game_id, slug, title, release_date, first_seen_at in games:
-        item = QueueItem(game_id, slug, title, release_date, first_seen_at)
+        item = QueueItem(game_id, slug, title, release_date, first_seen_at, popularity.get(game_id) or 0)
         oldest_due: datetime | None = None
         missing = False
         for kind in KINDS:
@@ -54,6 +64,7 @@ def video_queue(session: Session, source: str, now: datetime, limit: int) -> lis
             overdue.append((oldest_due, item))
 
     never.sort(key=lambda item: item.first_seen_at, reverse=True)
+    never.sort(key=lambda item: item.popularity, reverse=True)  # stable: equal games stay newest first
     overdue.sort(key=lambda pair: pair[0])
     return (never + [item for _, item in overdue])[:limit]
 
